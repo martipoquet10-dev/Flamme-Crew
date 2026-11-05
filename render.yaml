@@ -1,0 +1,19 @@
+# Render blueprint: New → Blueprint → pick this repository.
+# A persistent disk is required so data and PINs survive restarts (paid "Starter" plan).
+services:
+  - type: web
+    name: flamme-crew
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: crew-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: CREW_TENANT
+        value: flamme-burger
+      - key: CREW_DEMO_PIN
+        sync: false        # set a secret shared PIN in the dashboard, or leave empty
+      - key: ANTHROPIC_API_KEY
+        sync: false        # paste your key in the dashboard

@@ -1,0 +1,14 @@
+{
+  "name": "Flamme Crew — Flamme Burger",
+  "short_name": "Flamme Crew",
+  "description": "The staff app for Flamme Burger: in-store tools, schedule and team community.",
+  "start_url": "../../index.html#/staff",
+  "scope": "../../",
+  "display": "standalone",
+  "background_color": "#F8F4EE",
+  "theme_color": "#17110F",
+  "icons": [
+    { "src": "brand/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

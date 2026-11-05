@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17110F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Flamme Crew</title>
+  <!-- Client (tenant) assets: change these 3 lines + the tenant scripts below for another company -->
+  <link rel="manifest" href="tenants/flamme-burger/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="64x64" href="tenants/flamme-burger/brand/icon-64.png">
+  <link rel="apple-touch-icon" href="tenants/flamme-burger/brand/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/app.css">
+  <link rel="stylesheet" href="assets/crew.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal" hidden></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- 1. CLIENT (tenant) — everything company-specific -->
+  <script src="tenants/flamme-burger/tenant.js"></script>
+  <script src="src/config/app.config.js"></script>
+  <script src="tenants/flamme-burger/catalog.js"></script>
+  <script src="tenants/flamme-burger/content.js"></script>
+  <script src="tenants/flamme-burger/prep.js"></script>
+  <script src="tenants/flamme-burger/workforce.js"></script>
+  <script src="tenants/flamme-burger/community.js"></script>
+
+  <!-- 2. PLATFORM core & services (same for every client) -->
+  <script src="src/core/util.js"></script>
+  <script src="src/services/prep.js"></script>
+  <script src="src/core/store.js"></script>
+  <script src="src/i18n/i18n.js"></script>
+  <script src="src/services/api.js"></script>
+  <script src="src/services/workforce.js"></script>
+  <script src="src/services/community.js"></script>
+  <script src="src/services/ai.js"></script>
+  <script src="src/services/sync.js"></script>
+
+  <!-- 3. PLATFORM UI -->
+  <script src="src/ui/art.js"></script>
+  <script src="src/app.js"></script>
+  <script src="src/ui/kit.js"></script>
+  <script src="src/views/staff.js"></script>
+  <script src="src/views/admin.js"></script>
+  <script src="src/views/shell.js"></script>
+  <script src="src/views/schedule.js"></script>
+  <script src="src/views/community.js"></script>
+  <script>
+    // Connect to the Crew server if this page is served by one; otherwise run as an offline demo.
+    App.sync.start().catch(function () { return false; }).then(function () { App.app.init(); });
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () {});
+  </script>
+</body>
+</html>

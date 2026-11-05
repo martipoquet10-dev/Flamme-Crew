@@ -1,0 +1,8 @@
+node_modules
+server/data
+server/.env
+.claude
+*.md
+flamme-crew.html
+serve.ps1
+start-server.cmd

@@ -1,0 +1,44 @@
+<title>Flamme Crew</title>
+<meta name="theme-color" content="#17110F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/crew.css">
+<style>
+  /* Hosted demo: single light look, explicit background so the host theme never shows through */
+  :root { color-scheme: light; }
+  body { background: var(--bg, #F8F4EE); color: var(--ink, #17110F); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+</style>
+
+<div id="app"></div>
+<div id="modal" hidden></div>
+<div id="toasts" aria-live="polite"></div>
+
+<!-- 1. CLIENT (tenant) -->
+<script src="tenants/flamme-burger/tenant.js"></script>
+<script src="src/config/app.config.js"></script>
+<script src="tenants/flamme-burger/catalog.js"></script>
+<script src="tenants/flamme-burger/content.js"></script>
+<script src="tenants/flamme-burger/prep.js"></script>
+<script src="tenants/flamme-burger/workforce.js"></script>
+<script src="tenants/flamme-burger/community.js"></script>
+<!-- 2. PLATFORM core & services -->
+<script src="src/core/util.js"></script>
+<script src="src/services/prep.js"></script>
+<script src="src/core/store.js"></script>
+<script src="src/i18n/i18n.js"></script>
+<script src="src/services/api.js"></script>
+<script src="src/services/workforce.js"></script>
+<script src="src/services/community.js"></script>
+<script src="src/services/ai.js"></script>
+<!-- 3. PLATFORM UI -->
+<script src="src/ui/art.js"></script>
+<script src="src/app.js"></script>
+<script src="src/ui/kit.js"></script>
+<script src="src/views/staff.js"></script>
+<script src="src/views/admin.js"></script>
+<script src="src/views/shell.js"></script>
+<script src="src/views/schedule.js"></script>
+<script src="src/views/community.js"></script>
+<script>App.app.init();</script>

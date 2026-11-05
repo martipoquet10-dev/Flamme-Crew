@@ -1,0 +1,16 @@
+{
+  "name": "crew-platform",
+  "version": "0.3.0",
+  "private": true,
+  "description": "White-label staff app: in-store tools, scheduling and team community.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.5.0"
+  }
+}
