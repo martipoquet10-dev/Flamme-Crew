@@ -60,6 +60,7 @@ App.store = (function () {
       // Schedule (workforce) + Community — seeded by tenants/<client>/workforce.js & community.js
       ...(d.workforceSeed ? d.workforceSeed() : {}),
       ...(d.communitySeed ? d.communitySeed() : {}),
+      ...(d.laborSeed ? d.laborSeed() : {}),
       notifications: d.notificationsSeed ? d.notificationsSeed() : [],
       tenantOverrides: {},   // manager-edited branding / module switches (App settings)
       orders: clone(d.orders),

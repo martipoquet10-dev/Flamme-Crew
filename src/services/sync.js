@@ -26,6 +26,7 @@ App.sync = (function () {
     'feed.create', 'feed.like', 'feed.comment', 'feed.confirmRead', 'feed.vote', 'feed.remove', 'feed.togglePin',
     'events.rsvp', 'events.create', 'learning.completeLesson', 'learning.submitQuiz', 'docs.confirmRead',
     'surveys.respond', 'kudos.give', 'kudos.cheer',
+    'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
   ];
 
   async function call(method, route, body) {

@@ -32,5 +32,7 @@ export function scopeFor(db, user, isMember) {
   d.events = db.events.filter((e) => inAudience(e.audience));
   // customer-side data is not needed in the staff app
   d.orders = []; d.ledger = []; d.reviews = []; d.cateringRequests = []; d.incidents = [];
+  // sales figures, budgets and pay locks are for managers only
+  d.salesActual = {}; d.salesForecast = {}; d.laborBudget = {};
   return d;
 }

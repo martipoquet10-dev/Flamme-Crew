@@ -97,7 +97,26 @@ App.tenant = {
     ],
     // Forecast revenue per weekday (0 = Sunday) — used for labour-cost %. DEMO numbers.
     revenueForecast: { 0: 38000, 1: 24000, 2: 26000, 3: 28000, 4: 34000, 5: 52000, 6: 58000 },
+    locationRevenueFactor: { 'loc-lokka': 1, 'loc-frogner': 0.8 },
     laborTargetPct: 28,
+    // Share of the day's sales per opening hour (sums to 1). Used to plan staff hour by hour. DEMO curve.
+    hourlySales: {
+      weekday: { 11: 0.06, 12: 0.11, 13: 0.10, 14: 0.06, 15: 0.05, 16: 0.08, 17: 0.13, 18: 0.15, 19: 0.11, 20: 0.08, 21: 0.05, 22: 0.02 },
+      weekend: { 11: 0.04, 12: 0.08, 13: 0.10, 14: 0.08, 15: 0.07, 16: 0.08, 17: 0.11, 18: 0.13, 19: 0.11, 20: 0.09, 21: 0.07, 22: 0.03, 23: 0.01 },
+    },
+    // Sales per labour hour you want to reach (NOK). Drives "recommended staff" per hour.
+    targetSplh: 1100,
+    minStaffPerHour: 3,
+    // Employer costs on top of gross pay — Norway: arbeidsgiveravgift 14.1 % (zone 1) + feriepenger 12 %. CONFIRM.
+    employerCost: { payrollTaxPct: 14.1, holidayPayPct: 12, status: 'provisional' },
+    weeklyLaborBudget: { 'loc-lokka': 85000, 'loc-frogner': 62000 },
+    // How each kind of absence is treated in reports and pay. CONFIRM with the client.
+    absenceRules: {
+      vacation: { paid: true, countsAsWorked: false },
+      sick: { paid: true, countsAsWorked: false },     // employer period (arbeidsgiverperioden)
+      timeoff: { paid: false, countsAsWorked: false },
+      other: { paid: false, countsAsWorked: false },
+    },
   },
 
   ai: {

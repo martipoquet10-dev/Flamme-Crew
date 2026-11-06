@@ -17,7 +17,7 @@ App.config = {
     languages: App.tenant.languages,
     currency: App.tenant.currency,
     storageKey: 'crew.' + App.tenant.id + '.v1',
-    dataVersion: 2,              // bump when demo data changes → stored demo DB is reseeded
+    dataVersion: 3,              // bump when demo data changes → stored demo DB is reseeded
   },
 
   brand: Object.assign({ productImages: {} }, App.tenant.brand),

@@ -38,7 +38,9 @@
       m('swaps') && ['#/staff/shifts/swaps', T('Swaps', 'Bytte'), 'swap'],
       m('leave') && ['#/staff/shifts/leave', T('Leave', 'Fravær'), 'beach'],
       m('availability') && ['#/staff/shifts/availability', T('Availability', 'Tilgjengelighet'), 'sliders'],
-      m('timesheets') && ['#/staff/shifts/hours', T('Hours & pay', 'Timer og lønn'), 'wallet'],
+      m('timesheets') && ['#/staff/shifts/hours', T('Timesheets', 'Timelister'), 'wallet'],
+      m('timesheets') && ['#/staff/shifts/report', T('Hours report', 'Timerapport'), 'list'],
+      admin && m('labor') && ['#/staff/shifts/labor', T('Labour & forecast', 'Lønn og prognose'), 'chart', false, 'mgr'],
       admin && ['#/staff/shifts/approvals', T('Approvals', 'Godkjenninger'), 'check', false, 'mgr'],
       admin && m('payroll') && ['#/staff/shifts/payroll', T('Payroll export', 'Lønnseksport'), 'download', false, 'mgr'],
     ].filter(Boolean) });
@@ -448,7 +450,7 @@
     const tt = tn();
     const groupsMods = [
       ['store', [['prep', t('staff.prep')], ['checklists', t('staff.checklists')], ['inventory', t('inv.nav')], ['guides', t('staff.guides')], ['menu', T('Menu & allergens', 'Meny og allergener')], ['assistant', T('AI assistant', 'AI-assistent')], ['emergency', T('Emergency', 'Nødsituasjon')], ['scan', t('staff.scan')]]],
-      ['shifts', [['myShifts', T('My shifts', 'Mine vakter')], ['rota', T('Rota', 'Vaktplan')], ['timeclock', T('Time clock', 'Stempling')], ['openShifts', T('Open shifts', 'Ledige vakter')], ['swaps', T('Swaps', 'Bytte')], ['leave', T('Leave', 'Fravær')], ['availability', T('Availability', 'Tilgjengelighet')], ['timesheets', T('Hours & pay', 'Timer og lønn')], ['payroll', T('Payroll export', 'Lønnseksport')]]],
+      ['shifts', [['myShifts', T('My shifts', 'Mine vakter')], ['rota', T('Rota', 'Vaktplan')], ['timeclock', T('Time clock', 'Stempling')], ['openShifts', T('Open shifts', 'Ledige vakter')], ['swaps', T('Swaps', 'Bytte')], ['leave', T('Leave', 'Fravær')], ['availability', T('Availability', 'Tilgjengelighet')], ['timesheets', T('Timesheets & hours report', 'Timelister og timerapport')], ['labor', T('Labour cost & forecast', 'Lønnskostnad og prognose')], ['payroll', T('Payroll export', 'Lønnseksport')]]],
       ['community', [['feed', T('News', 'Nyheter')], ['chat', 'Chat'], ['events', T('Events', 'Arrangementer')], ['learning', T('Training', 'Opplæring')], ['docs', T('Handbook', 'Håndbok')], ['surveys', T('Surveys', 'Undersøkelser')], ['kudos', T('Kudos', 'Ros')], ['directory', T('Colleagues', 'Kolleger')]]],
     ];
     return `<div class="page-w">

@@ -39,6 +39,7 @@
   <script src="src/services/api.js"></script>
   <script src="src/services/workforce.js"></script>
   <script src="src/services/community.js"></script>
+  <script src="src/services/labor.js"></script>
   <script src="src/services/ai.js"></script>
   <script src="src/services/sync.js"></script>
 
@@ -51,6 +52,7 @@
   <script src="src/views/shell.js"></script>
   <script src="src/views/schedule.js"></script>
   <script src="src/views/community.js"></script>
+  <script src="src/views/hours.js"></script>
   <script>
     // Connect to the Crew server if this page is served by one; otherwise run as an offline demo.
     App.sync.start().catch(function () { return false; }).then(function () { App.app.init(); });

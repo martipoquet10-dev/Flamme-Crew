@@ -69,6 +69,21 @@ App.demo = App.demo || {};
     return s;
   }
 
+  // DEMO actual sales for the last 4 weeks (the POS would send these), so forecast vs. actual can be compared.
+  App.demo.laborSeed = function () {
+    const W = App.tenant.workforce, today = dayKey(new Date());
+    const salesActual = {};
+    ['loc-lokka', 'loc-frogner'].forEach((loc) => {
+      for (let n = 1; n <= 28; n++) {
+        const key = addDays(today, -n);
+        const base = W.revenueForecast[weekday(key)] * (W.locationRevenueFactor[loc] || 1);
+        const wobble = 0.86 + ((Math.abs(hash(loc + key)) % 29) / 100);
+        salesActual[loc + '|' + key] = Math.round(base * wobble / 100) * 100;
+      }
+    });
+    return { salesActual, salesForecast: {}, laborBudget: {}, payLocks: {} };
+  };
+
   App.demo.notificationsSeed = function () {
     const ago = (m) => new Date(Date.now() - m * 60e3).toISOString();
     const N = (userId, en, nb, route, kind, m, read) => ({ id: 'n-' + userId + m, userId, text: { en, nb }, route, kind, at: ago(m), read: !!read });

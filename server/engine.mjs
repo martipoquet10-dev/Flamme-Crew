@@ -23,6 +23,7 @@ export const ACTIONS = new Set([
   'feed.create', 'feed.like', 'feed.comment', 'feed.confirmRead', 'feed.vote', 'feed.remove', 'feed.togglePin',
   'events.rsvp', 'events.create', 'learning.completeLesson', 'learning.submitQuiz', 'docs.confirmRead',
   'surveys.respond', 'kudos.give', 'kudos.cheer',
+  'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
 ]);
 
 const ID_RX = /^[a-z]{1,6}-[a-z0-9]{8,24}$/;
@@ -64,10 +65,13 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
   if (stored) { try { ctx.App.config.app.dataVersion = JSON.parse(stored).dataVersion; } catch { /* corrupt → reseed */ } }
   ['catalog.js', 'content.js', 'prep.js', 'workforce.js', 'community.js'].forEach((f) => load(t + f));
   ['src/core/util.js', 'src/services/prep.js', 'src/core/store.js', 'src/i18n/i18n.js', 'src/services/api.js',
-    'src/services/workforce.js', 'src/services/community.js'].forEach(load);
+    'src/services/workforce.js', 'src/services/community.js', 'src/services/labor.js'].forEach(load);
 
   const App = ctx.App;
-  if (!stored) App.store.save(); // write the seed
+  // Add data introduced by newer versions to an existing database (no reset needed)
+  const upgrade = stored && App.demo.laborSeed && !App.store.db.salesActual;
+  if (upgrade) Object.assign(App.store.db, App.demo.laborSeed());
+  if (!stored || upgrade) App.store.save();
 
   function as(userId, lang) {
     App.store.client.sessionUserId = userId;
