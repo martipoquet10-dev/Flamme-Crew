@@ -156,6 +156,31 @@ App.ai = (function () {
     return { kind: 'guide', text, notes, escalate: outdated, sources };
   }
 
+  // Kitchen recipes (tenants/<client>/recipes.js)
+  function findRecipe(q) {
+    const list = (App.recipes || {}).list || [];
+    const n = ' ' + U.normalize(q) + ' ';
+    let best = null, bestLen = 0;
+    list.forEach((r) => {
+      [r.name.en, r.name.nb].concat(r.aliases || []).forEach((nm) => {
+        const k = U.normalize(nm).replace(/^flamme /, '').trim();
+        if (k && n.includes(k) && k.length > bestLen) { best = r; bestLen = k.length; }
+      });
+    });
+    return best;
+  }
+  function recipeAnswer(r) {
+    const amt = (i) => (i.unit === 'pcs' ? i.qty + ' ' + tr('pcs', 'stk') : i.qty >= 1000 ? String(i.qty / 1000).replace('.', App.i18n.lang === 'nb' ? ',' : '.') + ' kg' : i.qty + ' g') + (i.toTaste ? tr(' (to taste)', ' (etter smak)') : '');
+    let text = tr('Recipe for ', 'Oppskrift på ') + U.L(r.name) + ' (' + tr('one batch', 'én batch') + '):\n\n' + tr('Ingredients:\n', 'Ingredienser:\n') +
+      r.ingredients.map((i) => `• ${U.L(i.name)}: ${amt(i)}`).join('\n') + '\n\n' + tr('Method:\n', 'Fremgangsmåte:\n') + r.steps.map((s, i) => `${i + 1}. ${U.L(s)}`).join('\n');
+    if (r.warnings && r.warnings.length) text += '\n\n⚠ ' + r.warnings.map(U.L).join('\n⚠ ');
+    if (r.note) text += '\n\n' + tr('Note: ', 'Merk: ') + U.L(r.note);
+    if (r.variant) text += '\n\n' + U.L(r.variant.title) + ': ' + U.L(r.variant.text);
+    const sources = [{ label: tr('Recipe: ', 'Oppskrift: ') + U.L(r.name), route: '#/staff/recipe/' + r.id }]
+      .concat(r.ingredients.filter((i) => i.ref).map((i) => ({ label: tr('Recipe: ', 'Oppskrift: ') + U.L(i.name), route: '#/staff/recipe/' + i.ref })));
+    return { kind: 'guide', text, sources };
+  }
+
   // Schedule / people questions, answered from the rota (Schedule area)
   function scheduleAnswer(q, ctx) {
     const n = U.normalize(q), W = App.wf, K = App.kit;
@@ -196,6 +221,8 @@ App.ai = (function () {
       if (isSafetyQuestion(q)) return Promise.resolve(allergenAnswer(q));
       const sch = scheduleAnswer(q, ctx);
       if (sch) return Promise.resolve(sch);
+      const rc = findRecipe(q);
+      if (rc) return Promise.resolve(recipeAnswer(rc));
       const n = U.normalize(q);
       if (/(thaw|defrost|take out|tine|tining|ta ut|prep|forbered|descongel|how much|hvor mye|how many|hvor mange)/.test(n)) {
         return Promise.resolve(prepAnswer(ctx));

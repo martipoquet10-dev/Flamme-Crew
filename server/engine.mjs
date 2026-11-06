@@ -66,6 +66,7 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
   // Keep stored data across app updates (no automatic demo reseed on the server).
   if (stored) { try { ctx.App.config.app.dataVersion = JSON.parse(stored).dataVersion; } catch { /* corrupt → reseed */ } }
   ['catalog.js', 'content.js', 'prep.js', 'workforce.js', 'community.js'].forEach((f) => load(t + f));
+  if (fs.existsSync(path.join(root, t + 'recipes.js'))) load(t + 'recipes.js');
   ['src/core/util.js', 'src/services/prep.js', 'src/core/store.js', 'src/i18n/i18n.js', 'src/services/api.js',
     'src/services/workforce.js', 'src/services/community.js', 'src/services/labor.js', 'src/services/planning.js'].forEach(load);
 

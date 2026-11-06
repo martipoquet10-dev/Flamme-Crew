@@ -25,6 +25,7 @@
       m('checklists') && ['#/staff/checklists', t('staff.checklists'), 'check'],
       m('inventory') && ['#/staff/inventory', t('inv.nav'), 'clipboard'],
       m('guides') && ['#/staff/guides', t('staff.guides'), 'book'],
+      m('recipes') && ['#/staff/recipes', T('Recipes', 'Oppskrifter'), 'chef'],
       m('menu') && ['#/staff/menu', T('Menu & allergens', 'Meny og allergener'), 'menu'],
       m('assistant') && ['#/staff/assistant', T('AI assistant', 'AI-assistent'), 'bot'],
       m('emergency') && ['#/staff/emergency', T('Emergency', 'Nødsituasjon'), 'alert'],
@@ -356,6 +357,7 @@
         ${cls.map(({ c, done, total }) => tile(K.mod('checklists'), '#/staff/checklists/' + c.id, c.type === 'opening' ? 'sunrise' : 'moon', esc(L(c.title)), done === total ? t('checklist.allDone') : t('checklist.pending', { n: total - done }), `<span class="ring sm" style="--p:${Math.round(done / total * 100)}"><span>${done}/${total}</span></span>`)).join('')}
         ${tile(K.mod('inventory'), '#/staff/inventory', 'clipboard', t('inv.title'), invDone ? t('inv.doneTonight') : t('inv.cardSub'), invDone ? `<span class="badge badge-green">✔</span>` : '')}
         ${tile(K.mod('guides'), '#/staff/guides', 'book', t('staff.guides'), T(api.guides.all().length + ' procedures, step by step', api.guides.all().length + ' rutiner, steg for steg'))}
+        ${tile(K.mod('recipes') && App.recipes, '#/staff/recipes', 'chef', T('Recipes', 'Oppskrifter'), T((App.recipes ? App.recipes.list.length : 0) + ' sauces and toppings, step by step', (App.recipes ? App.recipes.list.length : 0) + ' sauser og topping, steg for steg'))}
         ${tile(K.mod('menu'), '#/staff/menu', 'menu', T('Menu & allergens', 'Meny og allergener'), T(verified + ' of ' + api.catalog.products().length + ' products verified', verified + ' av ' + api.catalog.products().length + ' produkter verifisert'))}
         ${tile(K.mod('assistant'), '#/staff/assistant', 'bot', T('AI assistant', 'AI-assistent'), t('assistant.cardSub'), '', 'ai')}
         ${tile(K.mod('emergency'), '#/staff/emergency', 'alert', T('Emergency & SOS', 'Nødsituasjon og SOS'), t('em.supervisorList'), '', 'red')}
@@ -453,7 +455,7 @@
   function settings() {
     const tt = tn();
     const groupsMods = [
-      ['store', [['prep', t('staff.prep')], ['checklists', t('staff.checklists')], ['inventory', t('inv.nav')], ['guides', t('staff.guides')], ['menu', T('Menu & allergens', 'Meny og allergener')], ['assistant', T('AI assistant', 'AI-assistent')], ['emergency', T('Emergency', 'Nødsituasjon')], ['scan', t('staff.scan')]]],
+      ['store', [['prep', t('staff.prep')], ['checklists', t('staff.checklists')], ['inventory', t('inv.nav')], ['guides', t('staff.guides')], ['recipes', T('Recipes', 'Oppskrifter')], ['menu', T('Menu & allergens', 'Meny og allergener')], ['assistant', T('AI assistant', 'AI-assistent')], ['emergency', T('Emergency', 'Nødsituasjon')], ['scan', t('staff.scan')]]],
       ['shifts', [['myShifts', T('My shifts', 'Mine vakter')], ['rota', T('Rota', 'Vaktplan')], ['timeclock', T('Time clock', 'Stempling')], ['openShifts', T('Open shifts', 'Ledige vakter')], ['swaps', T('Swaps', 'Bytte')], ['leave', T('Leave', 'Fravær')], ['availability', T('Availability', 'Tilgjengelighet')], ['timesheets', T('Timesheets & hours report', 'Timelister og timerapport')], ['labor', T('Labour cost & forecast', 'Lønnskostnad og prognose')], ['payroll', T('Payroll export', 'Lønnseksport')]]],
       ['community', [['feed', T('News', 'Nyheter')], ['chat', 'Chat'], ['events', T('Events', 'Arrangementer')], ['learning', T('Training', 'Opplæring')], ['docs', T('Handbook', 'Håndbok')], ['surveys', T('Surveys', 'Undersøkelser')], ['kudos', T('Kudos', 'Ros')], ['directory', T('Colleagues', 'Kolleger')]]],
     ];

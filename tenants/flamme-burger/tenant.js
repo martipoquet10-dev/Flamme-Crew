@@ -56,7 +56,7 @@ App.tenant = {
   // Individual features. Set to false to hide a feature for this client.
   modules: {
     // In store
-    prep: true, checklists: true, inventory: true, guides: true, menu: true, assistant: true, emergency: true, scan: true,
+    prep: true, checklists: true, inventory: true, guides: true, recipes: true, menu: true, assistant: true, emergency: true, scan: true,
     // Schedule
     myShifts: true, rota: true, openShifts: true, swaps: true, timeclock: true, timesheets: true, leave: true, availability: true,
     payroll: true, labor: true,

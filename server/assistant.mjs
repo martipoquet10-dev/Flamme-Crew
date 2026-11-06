@@ -36,7 +36,10 @@ function companyContext(App, lang) {
       ? `- product:${p.id} "${L(p.name, lang)}" ${p.priceNok} NOK. Allergens VERIFIED by ${a.verifiedBy}: contains ${names(a.contains)}; may contain ${names(a.mayContain)}.`
       : `- product:${p.id} "${L(p.name, lang)}" ${p.priceNok} NOK. ${L(p.description, lang)} Allergens: NOT VERIFIED.`;
   });
-  return `Company: ${App.tenant.name}. Staff app: ${App.tenant.appName}.\n\n<guides>\n${guides.join('\n\n')}\n</guides>\n\n<handbook>\n${docs.join('\n\n')}\n</handbook>\n\n<menu>\n${products.join('\n')}\n</menu>`;
+  const amt = (i) => (i.unit === 'pcs' ? i.qty + ' pieces' : i.qty >= 1000 ? i.qty / 1000 + ' kg' : i.qty + ' g') + (i.toTaste ? ' (or to taste)' : '');
+  const recipes = ((App.recipes || {}).list || []).map((r) => [`<recipe id="recipe:${r.id}" status="approved" source="Flamme Burger kitchen recipe binder">`, `Name: ${L(r.name, lang)}`, `Ingredients (one batch):`, ...r.ingredients.map((i) => `- ${L(i.name, lang)}: ${amt(i)}`), 'Method:', ...r.steps.map((s, n) => `${n + 1}. ${L(s, lang)}`),
+    ...(r.warnings || []).map((w) => `WARNING: ${L(w, lang)}`), ...(r.note ? [`Note: ${L(r.note, lang)}`] : []), ...(r.variant ? [`${L(r.variant.title, lang)}: ${L(r.variant.text, lang)}`] : []), '</recipe>'].join('\n'));
+  return `Company: ${App.tenant.name}. Staff app: ${App.tenant.appName}.\n\n<guides>\n${guides.join('\n\n')}\n</guides>\n\n<handbook>\n${docs.join('\n\n')}\n</handbook>\n\n<menu>\n${products.join('\n')}\n</menu>\n\n<recipes note="Kitchen prep recipes. Give amounts exactly as written; to scale a batch, multiply every amount and say so. Allergen questions are not answered from recipes: use the verified menu data.">\n${recipes.join('\n\n')}\n</recipes>`;
 }
 
 // The employee's own situation right now — changes per request, sent after the cached part.
@@ -72,7 +75,7 @@ Language: many employees are not native speakers. Detect the language the employ
 Style: short and practical, like a helpful colleague. Use numbered steps for procedures. Plain text, no markdown headings or tables.
 
 End every answer with exactly two lines:
-SOURCES: <comma-separated ids you used, e.g. guide:g-closing, doc:d-handbook, product:b-classic, shifts, checklists, prep — or none>
+SOURCES: <comma-separated ids you used, e.g. guide:g-closing, doc:d-handbook, product:b-classic, recipe:coleslaw, shifts, checklists, prep — or none>
 ESCALATE: <yes if the employee should check with a manager, otherwise no>`;
 
 function routeFor(id) {
@@ -80,6 +83,7 @@ function routeFor(id) {
   if (kind === 'guide') return '#/staff/guide/' + ref;
   if (kind === 'doc') return '#/staff/community/doc/' + ref;
   if (kind === 'product') return '#/staff/menu/' + ref;
+  if (kind === 'recipe') return '#/staff/recipe/' + ref;
   return { shifts: '#/staff/shifts', checklists: '#/staff/checklists', prep: '#/staff/prep' }[kind] || null;
 }
 
@@ -95,6 +99,7 @@ export async function ask(engine, user, { question, lang, locationId, history })
       if (kind === 'guide') { const g = App.api.guides.get(ref); return g ? 'Guide: ' + L(g.title, lang) : null; }
       if (kind === 'doc') { const d = App.api.docs.get(ref); return d ? L(d.title, lang) : null; }
       if (kind === 'product') { const p = App.api.catalog.product(ref); return p ? L(p.name, lang) : null; }
+      if (kind === 'recipe') { const r = ((App.recipes || {}).list || []).find((x) => x.id === ref); return r ? (lang === 'nb' ? 'Oppskrift: ' : 'Recipe: ') + L(r.name, lang) : null; }
       return { shifts: lang === 'nb' ? 'Mine vakter' : 'My shifts', checklists: lang === 'nb' ? 'Sjekklister' : 'Checklists', prep: lang === 'nb' ? 'Forberedelsesrapport' : 'Prep report' }[kind] || null;
     },
   }));
