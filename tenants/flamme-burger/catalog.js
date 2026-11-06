@@ -150,19 +150,19 @@ App.demo = App.demo || {};
   // the shop; others only show closing time 22:00 there → opening time TO VERIFY.
   // Delivery flags and postcode prefixes are PROVISIONAL (own delivery not launched yet).
   App.demo.locations = [
-    { id: 'loc-lokka', name: 'Flamme Burger Grünerløkka', address: 'Thorvald Meyers gate 87, 0550 Oslo', city: 'Oslo',
+    { id: 'loc-lokka', lat: 59.9226, lng: 10.7586, name: 'Flamme Burger Grünerløkka', address: 'Thorvald Meyers gate 87, 0550 Oslo', city: 'Oslo',
       phone: '+47 902 75 631', email: 'post@flammeburger.no',
       hours: { open: '11:00', close: '22:00' }, hoursWeek: { mon: '12:00–22:00', tue: '11:00–22:00', wed: '11:00–22:00', thu: '11:00–23:00', fri: '11:00–23:00', sat: '11:00–23:00', sun: '11:00–23:00' }, hoursVerified: true,
       pickup: true, delivery: true, deliveryPostcodePrefixes: ['04', '05', '06'] },
-    { id: 'loc-frogner', name: 'Flamme Burger Frogner', address: 'Skovveien 3, 0257 Oslo', city: 'Oslo',
+    { id: 'loc-frogner', lat: 59.9176, lng: 10.709, name: 'Flamme Burger Frogner', address: 'Skovveien 3, 0257 Oslo', city: 'Oslo',
       hours: { open: '11:00', close: '22:00' }, hoursVerified: false, pickup: true, delivery: true, deliveryPostcodePrefixes: ['01', '02', '03'] },
-    { id: 'loc-strandgaten', name: 'Flamme Burger Strandgaten', address: 'Strandgaten 89, Bergen', city: 'Bergen',
+    { id: 'loc-strandgaten', lat: 60.3952, lng: 5.3195, name: 'Flamme Burger Strandgaten', address: 'Strandgaten 89, Bergen', city: 'Bergen',
       hours: { open: '11:00', close: '22:00' }, hoursVerified: false, pickup: true, delivery: true, deliveryPostcodePrefixes: ['50'] },
-    { id: 'loc-engen', name: 'Flamme Burger Engen', address: 'Engen 6, Bergen', city: 'Bergen',
+    { id: 'loc-engen', lat: 60.3906, lng: 5.3196, name: 'Flamme Burger Engen', address: 'Engen 6, Bergen', city: 'Bergen',
       hours: { open: '11:00', close: '22:00' }, hoursVerified: false, pickup: true, delivery: true, deliveryPostcodePrefixes: ['50'] },
-    { id: 'loc-asane', name: 'Flamme Burger Åsane Storsenter', address: 'Åsane Senter 39, Bergen', city: 'Bergen',
+    { id: 'loc-asane', lat: 60.4655, lng: 5.3226, name: 'Flamme Burger Åsane Storsenter', address: 'Åsane Senter 39, Bergen', city: 'Bergen',
       hours: { open: '11:00', close: '22:00' }, hoursVerified: false, pickup: true, delivery: false, deliveryPostcodePrefixes: [] },
-    { id: 'loc-stord', name: 'Flamme Burger Stord', address: 'Osen 2, Stord', city: 'Stord',
+    { id: 'loc-stord', lat: 59.7801, lng: 5.4983, name: 'Flamme Burger Stord', address: 'Osen 2, Stord', city: 'Stord',
       hours: { open: '15:00', close: '22:00' }, hoursVerified: false, pickup: true, delivery: false, deliveryPostcodePrefixes: [] },
   ];
 })();

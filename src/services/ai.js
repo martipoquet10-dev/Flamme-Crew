@@ -21,7 +21,7 @@ App.ai = (function () {
     'Answer ONLY from the provided company documents. Always cite the document(s) used.',
     'If the documents do not contain the answer, are marked draft/outdated, or are ambiguous, say so and tell the employee to contact the shift manager.',
     'Allergens and food safety: never guess, infer or generalise. Only repeat verified product data verbatim. Never state that a product is safe for someone.',
-    'Be brief and practical. Reply in the language of the question (Norwegian or English).',
+    'Be brief and practical. Detect the language of the question (e.g. Spanish, English, Norwegian, Nepali) and reply in that language, translating document content faithfully.',
   ].join('\n');
 
   const tr = (en, nb) => (App.i18n.lang === 'nb' ? nb : en);

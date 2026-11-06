@@ -177,6 +177,7 @@
       ${open.length || isMgr() ? `<div class="rg-row open-row"><div class="rg-person"><span class="av" style="--s:32px;--c:#ADB5BD">${ic('plusCircle', 16)}</span><div><b>${T('Open shifts', 'Ledige vakter')}</b><span class="small muted">${open.length}</span></div></div>
         ${days.map((d) => `<div class="rg-cell ${d === today ? 'today' : ''}" data-cell-date="${d}" data-cell-user="" ${isMgr() ? `data-action="newShift" data-date="${d}" data-user=""` : ''}>${open.filter((s) => s.date === d).map((s) => chip(s)).join('')}</div>`).join('')}</div>` : ''}
       ${team.map(row).join('')}
+      ${(() => { const ids = new Set(team.map((p) => p.id)); const guests = [...new Set(all.filter((x) => x.userId && !ids.has(x.userId)).map((x) => x.userId))].map((id) => api.people.get(id)).filter(Boolean); return guests.length ? `<div class="rg-row rg-sep"><div class="rg-person small muted">${T('From other restaurants', 'Fra andre restauranter')}</div></div>` + guests.map((p) => row(p).replace('class="rg-row ', 'class="rg-row guest ')).join('') : ''; })()}
       ${isMgr() ? `<div class="rg-row rg-foot"><div class="rg-person small muted">${T('Cost / forecast', 'Kostnad / prognose')}</div>${stats.map((st) => `<div class="rg-cost"><b>${U.nok(st.cost)}</b><span class="small muted">${U.nok(st.revenue)}</span><span class="bar"><i style="width:${Math.min(100, st.pct / 50 * 100)}%;background:${st.pct > C().laborTargetPct ? 'var(--red)' : 'var(--green)'}"></i></span></div>`).join('')}</div>` : ''}
     </div></div>`;
   }

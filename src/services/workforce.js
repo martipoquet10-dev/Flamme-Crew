@@ -137,6 +137,13 @@ App.wf = (function () {
     const rest = all.some((x) => { const gapA = (W.shiftStart(s) - W.shiftEnd(x)) / 36e5, gapB = (W.shiftStart(x) - W.shiftEnd(s)) / 36e5; return (gapA > 0 && gapA < 11) || (gapB > 0 && gapB < 11); });
     if (rest) out.push({ kind: 'rest', text: T('Less than 11 h rest (AML § 10-8)', 'Under 11 t hvile (AML § 10-8)') });
     if (App.tenant.usePositions !== false && u && s.positionId && u.positions && !u.positions.includes(s.positionId)) out.push({ kind: 'position', text: T('Not trained for this position', 'Ikke opplært i denne stillingen') });
+    // Max Sundays in a row (AML § 10-10 / agreement)
+    const maxSun = Number(cfg().maxConsecutiveSundays) || 0;
+    if (maxSun && W.weekday(s.date) === 0) {
+      let n = 0;
+      for (let k = 1; k <= maxSun; k++) { const d = W.addDays(s.date, -7 * k); if (all.some((x) => x.date === d)) n++; else break; }
+      if (n >= maxSun) out.push({ kind: 'sundays', text: T('Would be ' + (n + 1) + ' Sundays in a row (max ' + maxSun + ')', 'Blir ' + (n + 1) + ' søndager på rad (maks ' + maxSun + ')') });
+    }
     const mon = W.monday(s.date), sun = W.addDays(mon, 6);
     const wk = all.filter((x) => x.date >= mon && x.date <= sun).reduce((h, x) => h + W.shiftHours(x), 0) + W.shiftHours(s);
     if (wk > cfg().overtime.weeklyHours) out.push({ kind: 'overtime', text: T('Over ' + cfg().overtime.weeklyHours + ' h this week', 'Over ' + cfg().overtime.weeklyHours + ' t denne uka') });
@@ -209,7 +216,7 @@ App.wf = (function () {
     templates() { return db().shiftTemplates; },
     open(locationId) {
       const u = req('staff');
-      return db().shifts.filter((s) => s.open && !s.userId && s.published && s.locationId === (locationId || u.locationId) && W.shiftEnd(s) > new Date())
+      return db().shifts.filter((s) => s.open && !s.userId && s.published && (s.locationId === (locationId || u.locationId) || (s.invited || []).includes(u.id)) && W.shiftEnd(s) > new Date())
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     },
     cost(s) { const u = s.userId && userOf(s.userId); return payFor(shiftSegments(s), u ? u.hourlyNok : avgWage(s.locationId), { positionId: s.positionId, user: u }); },

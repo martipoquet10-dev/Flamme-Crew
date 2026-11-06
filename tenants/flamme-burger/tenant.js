@@ -111,6 +111,8 @@ App.tenant = {
     revenueForecast: { 0: 38000, 1: 24000, 2: 26000, 3: 28000, 4: 34000, 5: 52000, 6: 58000 },
     locationRevenueFactor: { 'loc-lokka': 1, 'loc-frogner': 0.8 },
     laborTargetPct: 28,
+    // Max Sundays in a row a person may work (AML § 10-10 and agreements — CONFIRM). 0 = no check.
+    maxConsecutiveSundays: 3,
     // Share of the day's sales per opening hour (sums to 1). Used to plan staff hour by hour. DEMO curve.
     hourlySales: {
       weekday: { 11: 0.06, 12: 0.11, 13: 0.10, 14: 0.06, 15: 0.05, 16: 0.08, 17: 0.13, 18: 0.15, 19: 0.11, 20: 0.08, 21: 0.05, 22: 0.02 },
@@ -134,6 +136,14 @@ App.tenant = {
   ai: {
     assistantName: { en: 'Flamme AI', nb: 'Flamme AI' },
     escalationContact: { en: 'the shift manager / restaurant manager', nb: 'skiftleder / restaurantsjef' },
+    // Languages staff can write to the assistant in. It detects the language and answers in it.
+    // Add more any time: { code, name (in its own language), example question }.
+    languages: [
+      { code: 'es', name: 'Español', example: '¿Qué alérgenos tiene la Classic Burger?' },
+      { code: 'en', name: 'English', example: 'How do I close the fryer?' },
+      { code: 'nb', name: 'Norsk', example: 'Når er neste vakt min?' },
+      { code: 'ne', name: 'नेपाली', example: 'आज बन्द गर्दा के के गर्नुपर्छ?' },
+    ],
   },
 
   emergencyNumbers: [['110', 'em.fire'], ['112', 'em.police'], ['113', 'em.ambulance']],

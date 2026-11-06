@@ -28,6 +28,7 @@ App.sync = (function () {
     'surveys.respond', 'kudos.give', 'kudos.cheer',
     'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
     'availability.setDates', 'templates.save', 'templates.apply', 'templates.remove', 'autoplan.run', 'autoplan.undo',
+    'cover.offer',
   ];
 
   async function call(method, route, body) {

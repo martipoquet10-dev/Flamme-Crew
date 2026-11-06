@@ -367,6 +367,7 @@
               ${m.sources && m.sources.length ? `<div class="msg-sources"><span class="small muted">${t('assistant.sources')}:</span>${m.sources.map((s) => `<a href="${s.route}" class="source">${ic('book', 14)} ${esc(s.label)}</a>`).join('')}</div>` : `<div class="msg-sources"><span class="small muted">${t('assistant.noSource')}</span></div>`}`}
             </div>`).join('')}
       </div>
+      ${(App.tenant.ai.languages || []).length ? `<div class="ai-langs small"><span class="muted">${App.i18n.T('Write in your language:', 'Skriv på ditt språk:')}</span> ${App.tenant.ai.languages.map((x) => `<button type="button" class="chip chip-xs" data-action="ask" data-q="${esc(x.example)}" title="${esc(x.example)}">${esc(x.name)}</button>`).join('')}${App.sync && App.sync.live && App.sync.ai ? '' : `<span class="muted"> · ${App.i18n.T('all languages work when the AI is connected', 'alle språk virker når AI er tilkoblet')}</span>`}</div>` : ''}
       <form class="chat-input" data-form="ask"><input id="askInput" name="q" class="input" autocomplete="off" placeholder="${t('assistant.ph')}" required><button class="btn btn-primary" aria-label="${t('assistant.send')}">${ic('arrow')}</button></form>
       <p class="small muted center">${t('assistant.disclaimer')}</p>
     </div>`;

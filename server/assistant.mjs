@@ -57,7 +57,7 @@ function personalContext(App, lang, locationId) {
     `<prep id="prep" note="demo forecast">\n${prep.join('\n')}\n</prep>`].join('\n\n');
 }
 
-const SYSTEM = (company, escalation) => `You are the internal assistant in the staff app of ${company}. You help employees during their shift.
+const SYSTEM = (company, escalation, langs) => `You are the internal assistant in the staff app of ${company}. You help employees during their shift.
 
 Answer only from the company documents and data given to you. If they do not contain the answer, say so plainly and tell the employee to ask ${escalation}. Never invent procedures, times, temperatures or rules.
 
@@ -67,7 +67,9 @@ Emergencies: if someone may be in danger, tell them to call the emergency number
 
 If a document is marked status="demo" or review_overdue, mention that it is not an approved procedure or may be outdated.
 
-Style: short and practical, like a helpful colleague. Use numbered steps for procedures. Plain text, no markdown headings or tables. Reply in the language of the question (Norwegian or English; other languages are fine too).
+Language: many employees are not native speakers. Detect the language the employee writes in and answer in that same language, in simple everyday words. Languages used in this company: ${langs}. Also answer in any other language they write in. The documents are in Norwegian/English: translate their content faithfully and keep it complete. For allergens, translate the allergen names and add the original term in brackets, e.g. "gluten (gluten), leche (melk)", so nothing is lost. Keep product names, dish names and phone numbers as they are. If the message mixes languages, answer in the main one.
+
+Style: short and practical, like a helpful colleague. Use numbered steps for procedures. Plain text, no markdown headings or tables.
 
 End every answer with exactly two lines:
 SOURCES: <comma-separated ids you used, e.g. guide:g-closing, doc:d-handbook, product:b-classic, shifts, checklists, prep — or none>
@@ -87,6 +89,7 @@ export async function ask(engine, user, { question, lang, locationId, history })
   const ctx = engine.read(user.id, lang, (App) => ({
     company: companyContext(App, lang), personal: personalContext(App, lang, locationId),
     escalation: L(App.tenant.ai.escalationContact, lang), name: App.tenant.name,
+    langs: (App.tenant.ai.languages || []).map((x) => x.name + ' (' + x.code + ')').join(', ') || 'Norwegian, English',
     labelOf: (id) => {
       const [kind, ref] = id.split(':');
       if (kind === 'guide') { const g = App.api.guides.get(ref); return g ? 'Guide: ' + L(g.title, lang) : null; }
@@ -108,12 +111,14 @@ export async function ask(engine, user, { question, lang, locationId, history })
     fallbacks: 'default',
     output_config: { effort: 'low' },
     // Instructions + company documents are identical for every employee → cached.
-    system: [{ type: 'text', text: SYSTEM(ctx.name, ctx.escalation) }, { type: 'text', text: ctx.company, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: SYSTEM(ctx.name, ctx.escalation, ctx.langs) }, { type: 'text', text: ctx.company, cache_control: { type: 'ephemeral' } }],
     messages: [...past, { role: 'user', content: `${ctx.personal}\n\nQuestion: ${q}` }],
   });
 
   if (response.stop_reason === 'refusal') {
-    return { kind: 'none', escalate: true, sources: [], text: lang === 'nb' ? `Jeg kan ikke svare på dette. Spør ${ctx.escalation}.` : `I can't answer this one. Please ask ${ctx.escalation}.` };
+    const ql = /[ऀ-ॿ]/.test(q) ? 'ne' : /[¿¡ñáéíóú]|(^|\s)(qué|que|cómo|como|dónde|cuándo|puedo|tengo|hola|los|las|del|para)(\s|$)/i.test(q) ? 'es' : lang;
+    const msg = { nb: `Jeg kan ikke svare på dette. Spør ${ctx.escalation}.`, es: 'No puedo responder a esto. Pregunta al encargado de turno.', ne: 'म यसको जवाफ दिन सक्दिन। कृपया सिफ्ट म्यानेजरलाई सोध्नुहोस्।' }[ql] || `I can't answer this one. Please ask ${ctx.escalation}.`;
+    return { kind: 'none', escalate: true, sources: [], text: msg };
   }
   const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
   const srcLine = (raw.match(/^SOURCES:\s*(.*)$/im) || [])[1] || '';

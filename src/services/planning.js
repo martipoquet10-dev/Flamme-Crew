@@ -72,7 +72,7 @@
   // ---------- helpers ----------
   const weekShifts = (loc, mon) => db().shifts.filter((s) => s.locationId === loc && s.date >= mon && s.date <= W.addDays(mon, 6));
   const hoursIn = (uidv, mon) => db().shifts.filter((s) => s.userId === uidv && s.date >= mon && s.date <= W.addDays(mon, 6)).reduce((h, s) => h + W.shiftHours(s), 0);
-  const HARD = ['double', 'leave', 'unavailable', 'outside', 'rest', 'position'];
+  const HARD = ['double', 'leave', 'unavailable', 'outside', 'rest', 'position', 'sundays'];
 
   // ---------- week templates ----------
   api.templates = {
@@ -181,6 +181,127 @@
     const orig = db().users; const filtered = orig.filter((u) => !seen.has(u.id));
     db().users = filtered; try { return bestCandidate(s, mon, 4); } finally { db().users = orig; }
   }
+
+  // ---------- cover from other restaurants (planning assistant) ----------
+  const toRad = (d) => (d * Math.PI) / 180;
+  function km(a, b) {
+    if (!a || !b || a.lat == null || b.lat == null) return null;
+    const R = 6371, dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const locs = () => api.catalog.locations();
+  const locOf = (id) => api.catalog.location(id);
+  function nearest(fromId) {
+    const from = locOf(fromId);
+    return locs().filter((l) => l.id !== fromId && db().users.some((u) => u.locationId === l.id && (u.role === 'staff' || u.role === 'admin')))
+      .map((l) => ({ loc: l, km: km(from, l) })).sort((a, b) => (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km));
+  }
+  // Can this person cover date/start–end at targetLoc? → { ok, reasons[], notes[], hoursWeek, cap }
+  function check(u, rq) {
+    const s = { id: '_cover', userId: u.id, locationId: rq.targetLoc, positionId: 'staff', date: rq.date, start: rq.start, end: rq.end, breakMin: (W.toMin(rq.end) - W.toMin(rq.start)) > 330 ? 30 : 0 };
+    const reasons = [], notes = [];
+    api.shifts.conflicts(s).forEach((c) => { if (HARD.includes(c.kind)) reasons.push(c.text); });
+    const sameDay = db().shifts.filter((x) => x.userId === u.id && x.date === rq.date);
+    sameDay.forEach((x) => notes.push(T('Also works ' + x.start + '–' + x.end + ' that day (' + (locOf(x.locationId) || {}).name + ')', 'Jobber også ' + x.start + '–' + x.end + ' den dagen (' + (locOf(x.locationId) || {}).name + ')')));
+    const av = api.availability.forDate(u.id, rq.date);
+    if (av.state === 'partial' && av.ranges.length) notes.push(T('Available ' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + (av.note ? ' · "' + av.note + '"' : ''), 'Tilgjengelig ' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + (av.note ? ' · «' + av.note + '»' : '')));
+    if (av.state === 'preferred') notes.push(T('Prefers to work this day', 'Jobber gjerne denne dagen'));
+    const mon = W.monday(rq.date); const used = hoursIn(u.id, mon); const cap = (u.contractHours || 20) + 4; const h = W.shiftHours(s);
+    if (used + h > cap) reasons.push(T('Would reach ' + Math.round(used + h) + ' h this week (contract ' + (u.contractHours || 20) + ' h)', 'Ville fått ' + Math.round(used + h) + ' t denne uka (avtale ' + (u.contractHours || 20) + ' t)'));
+    return { ok: !reasons.length, reasons, notes, hoursWeek: used, cap, score: used / (u.contractHours || 20) - (av.state === 'preferred' ? 0.3 : 0) };
+  }
+  api.cover = {
+    km, nearest,
+    // req: { targetLoc, date, start, end, count, sourceLoc? (else nearest restaurants) }
+    find(q) {
+      req('admin');
+      q = Object.assign({ targetLoc: me().locationId }, q || {});
+      const sources = q.sourceLoc ? [{ loc: locOf(q.sourceLoc), km: km(locOf(q.targetLoc), locOf(q.sourceLoc)) }] : nearest(q.targetLoc).slice(0, 3);
+      const searched = sources.filter((x) => x.loc).map(({ loc, km: dist }) => {
+        const team = db().users.filter((u) => u.locationId === loc.id && (u.role === 'staff' || u.role === 'admin'));
+        const rows = team.map((u) => Object.assign({ user: u }, check(u, q)));
+        return { loc, km: dist, candidates: rows.filter((r) => r.ok).sort((a, b) => a.score - b.score), excluded: rows.filter((r) => !r.ok) };
+      });
+      // the manager's own team, for context ("why can't my people do it?")
+      const own = db().users.filter((u) => u.locationId === q.targetLoc && (u.role === 'staff' || u.role === 'admin')).map((u) => Object.assign({ user: u }, check(u, q)));
+      return { req: q, target: locOf(q.targetLoc), searched, own: { candidates: own.filter((r) => r.ok), excluded: own.filter((r) => !r.ok) } };
+    },
+    // Creates the open shift(s) at the target restaurant, invites the people, messages them and their manager.
+    offer(data) {
+      const mgr = req('admin');
+      const target = locOf(data.targetLoc); if (!target) throw new ApiError('not_found');
+      const users = [].concat(data.userIds || []).map(user).filter(Boolean); if (!users.length) throw new ApiError('bad_request');
+      const count = Math.max(1, Math.min(10, Number(data.count) || users.length));
+      const shifts = [];
+      for (let i = 0; i < count; i++) {
+        const s = { id: uid('sh'), locationId: target.id, userId: null, positionId: 'staff', date: data.date, start: data.start, end: data.end, breakMin: (W.toMin(data.end) - W.toMin(data.start)) > 330 ? 30 : 0,
+          note: T('Cover from another restaurant', 'Dekning fra annen restaurant').en, published: true, open: true, invited: users.map((u) => u.id), coverBy: mgr.name };
+        db().shifts.push(s); shifts.push(s);
+      }
+      const text = String(data.message || '').slice(0, 1500);
+      users.forEach((u) => {
+        const c = api.chat.dm(u.id);
+        if (text) api.chat.send(c.id, text.replace(/\{name\}/g, u.name.split(' ')[0]));
+        api.notifications.push(u.id, T('Shift offer: ' + target.name + ' ' + data.date + ' ' + data.start + '–' + data.end, 'Vakttilbud: ' + target.name + ' ' + data.date + ' ' + data.start + '–' + data.end), '#/staff/shifts/open', 'claim');
+      });
+      if (data.notifyManagers) {
+        const byLoc = {};
+        users.forEach((u) => (byLoc[u.locationId] = (byLoc[u.locationId] || []).concat(u)));
+        Object.keys(byLoc).forEach((lid) => {
+          const names = byLoc[lid].map((u) => u.name).join(', ');
+          db().users.filter((x) => x.role === 'admin' && x.locationId === lid && x.id !== mgr.id).forEach((m) => {
+            api.notifications.push(m.id, T(mgr.name + ' (' + target.name + ') asked ' + names + ' to cover ' + data.date + ' ' + data.start + '–' + data.end, mgr.name + ' (' + target.name + ') har spurt ' + names + ' om å dekke ' + data.date + ' ' + data.start + '–' + data.end), '#/staff/shifts/rota', 'shift');
+            const c = api.chat.dm(m.id);
+            api.chat.send(c.id, (data.managerMessage || '').slice(0, 1500) || T('Hi! I have asked ' + names + ' if they can cover ' + data.date + ' ' + data.start + '–' + data.end + ' at ' + target.name + '. They only have to accept in the app — nothing changes in your rota unless they do. Thanks!', 'Hei! Jeg har spurt ' + names + ' om de kan dekke ' + data.date + ' ' + data.start + '–' + data.end + ' på ' + target.name + '. De må bare godta i appen — ingenting endres i din vaktplan med mindre de gjør det. Takk!')[App.i18n.lang === 'nb' ? 'nb' : 'en']);
+          });
+        });
+      }
+      return commit({ shifts: shifts.map((s) => s.id), invited: users.length });
+    },
+    // Natural language → request. Understands Spanish, English and Norwegian, e.g.
+    // "¿Cómo está Løkka para el domingo? En Frogner necesito 2 personas por la tarde"
+    parse(text, defaults) {
+      const U = App.util;
+      const raw = String(text || ''); const t = U.normalize(raw.replace(/ø/gi, 'o').replace(/å/gi, 'a').replace(/æ/gi, 'ae'));
+      const d = Object.assign({ targetLoc: me().locationId }, defaults || {});
+      // restaurants mentioned
+      const aliases = locs().map((l) => ({ id: l.id, keys: [U.normalize(l.name.replace(App.tenant.name, '')).trim(), l.id.replace('loc-', '')].concat(l.id === 'loc-lokka' ? ['lokka', 'grunerlokka', 'gruner'] : l.id === 'loc-asane' ? ['asane'] : []) }));
+      const found = [];
+      aliases.forEach((a) => a.keys.filter(Boolean).forEach((k) => { const i = t.indexOf(k); if (i >= 0 && !found.some((f) => f.id === a.id)) found.push({ id: a.id, i }); }));
+      found.sort((a, b) => a.i - b.i);
+      const needAt = t.search(/necesit|need|trenger|falta|missing|cubrir|cover|dekke/);
+      if (found.length >= 2) {
+        // the restaurant closest to "I need…" is where the gap is; the other one is where we look
+        const byNeed = found.slice().sort((a, b) => Math.abs(a.i - needAt) - Math.abs(b.i - needAt));
+        d.targetLoc = needAt >= 0 ? byNeed[0].id : found[1].id; d.sourceLoc = found.find((f) => f.id !== d.targetLoc).id;
+      } else if (found.length === 1) {
+        if (found[0].id === d.targetLoc) d.sourceLoc = null; else d.sourceLoc = found[0].id;
+      }
+      // day
+      const days = { domingo: 0, sunday: 0, sondag: 0, lunes: 1, monday: 1, mandag: 1, martes: 2, tuesday: 2, tirsdag: 2, miercoles: 3, wednesday: 3, onsdag: 3, jueves: 4, thursday: 4, torsdag: 4, viernes: 5, friday: 5, fredag: 5, sabado: 6, saturday: 6, lordag: 6 };
+      const today = W.today(); let date = null, m;
+      if ((m = t.match(/\b(\d{1,2})[./](\d{1,2})\b/))) { const y = today.slice(0, 4); date = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; if (date < today) date = `${Number(y) + 1}${date.slice(4)}`; }
+      if (!date) { const w = Object.keys(days).find((k) => new RegExp('\\b' + k).test(t)); if (w) { for (let i = 0; i < 8; i++) { const c = W.addDays(today, i); if (W.weekday(c) === days[w] && (i > 0 || /\b(hoy|today|i dag)\b/.test(t))) { date = c; break; } } } }
+      if (!date && /\b(hoy|today|idag|i dag)\b/.test(t)) date = today;
+      if (!date && (/\bmanana\b/.test(t) && !/(por|de|en) la manana/.test(t) || /\btomorrow\b|\bi morgen\b/.test(t))) date = W.addDays(today, 1);
+      d.date = date || d.date || null;
+      // hours
+      if ((m = t.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(?:-|–|a|to|til|hasta|y)\s*(\d{1,2})(?:[:.](\d{2}))?/))) {
+        const a = Number(m[1]), b = Number(m[3]);
+        if (a < 24 && b <= 24) { d.start = String(a).padStart(2, '0') + ':' + (m[2] || '00'); d.end = (b === 24 ? '23:59' : String(b).padStart(2, '0') + ':' + (m[4] || '00')); }
+      }
+      if (!d.start) {
+        if (/(por la|de la|en la) manana|morning|formiddag|morgen\b|mediodia|lunch|lunsj/.test(t)) { d.start = '10:00'; d.end = '16:00'; d.part = 'morning'; }
+        else if (/tarde|evening|afternoon|kveld|ettermiddag|noche|night|natt/.test(t)) { d.start = '16:00'; d.end = W.weekday(d.date || today) === 5 || W.weekday(d.date || today) === 6 ? '23:30' : '22:30'; d.part = 'evening'; }
+      }
+      // how many people
+      const words = { una: 1, uno: 1, one: 1, en: 1, ett: 1, dos: 2, two: 2, to: 2, tres: 3, three: 3, tre: 3, cuatro: 4, four: 4, fire: 4 };
+      if ((m = t.match(/(\d+|una|uno|dos|tres|cuatro|one|two|three|four|to|tre|fire)\s*(personas?|people|persons?|personer|trabajador|workers?|ansatte|folk|chicos|empleados)/))) d.count = Number(m[1]) || words[m[1]] || 1;
+      d.count = d.count || 1;
+      return d;
+    },
+  };
 
   // ---------- head-office overview ----------
   api.hq = {

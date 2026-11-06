@@ -351,6 +351,120 @@
     },
   });
 
+  // ================= PLANNING ASSISTANT (find cover at other restaurants) =================
+  const pb = () => (app.ui.pb = app.ui.pb || { msgs: [], last: null, sel: {} });
+  const shortLoc = (l) => (l ? l.name.replace(App.tenant.name + ' ', '') : '');
+  App.views.planBotFab = () => `<button class="plan-fab" data-action="planBotOpen" aria-label="${T('Planning assistant', 'Planleggingsassistent')}">${ic('sparkle', 22)}<span>${T('Planning assistant', 'Planleggingsassistent')}</span></button>`;
+
+  function resultCard(r) {
+    const q = r.req; const need = q.count || 1;
+    const sel = pb().sel;
+    const when = `${K.fmtDay(q.date)} · ${q.start}–${q.end}`;
+    const person = (c, checked) => `<label class="pb-person ${checked ? 'on' : ''}"><input type="checkbox" data-change="pbPick" value="${c.user.id}" ${checked ? 'checked' : ''}>
+      ${K.avatar(c.user, 34)}<span><b>${esc(c.user.name)}</b><span class="small muted">${esc(L(c.user.title) || '')} · ${Math.round(c.hoursWeek)}/${c.user.contractHours || '—'} ${T('h this week', 't denne uka')}</span>
+      ${c.notes.map((n) => `<span class="small pb-note">${ic('clock', 12)} ${esc(L(n))}</span>`).join('')}</span></label>`;
+    const excluded = (list) => list.length ? `<details class="pb-excl"><summary class="small">${T('Not possible', 'Ikke mulig')} (${list.length})</summary>${list.map((c) => `<div class="small"><b>${esc(c.user.name)}</b> — <span class="muted">${c.reasons.map((x) => esc(L(x))).join(' · ')}</span></div>`).join('')}</details>` : '';
+    let firstPicks = need;
+    const blocks = r.searched.map((s) => {
+      const list = s.candidates.map((c) => { const on = sel[c.user.id] != null ? sel[c.user.id] : firstPicks-- > 0; sel[c.user.id] = on; return person(c, on); }).join('');
+      return `<div class="pb-loc"><div class="row-between"><b>${ic('pin', 14)} ${esc(shortLoc(s.loc))}</b><span class="small muted">${s.km != null ? s.km.toFixed(1) + ' km' : ''}</span></div>
+        ${s.candidates.length ? `<p class="small">${T(s.candidates.length + ' can cover it:', s.candidates.length + ' kan dekke:')}</p>${list}` : `<p class="small muted">${T('Nobody here can take it.', 'Ingen her kan ta den.')}</p>`}${excluded(s.excluded)}</div>`;
+    }).join('');
+    const ownBlocked = r.own.excluded.filter((c) => c.reasons.some((x) => /Sunday|søndag/i.test(L(x))));
+    const picked = Object.keys(sel).filter((k) => sel[k]).length;
+    return `<div class="pb-card">
+      <p><b>${esc(shortLoc(r.target))}</b> · ${esc(when)} · ${T('need', 'trenger')} <b>${need}</b></p>
+      ${r.own.candidates.length ? `<div class="notice notice-green small">${ic('user', 14)} <span>${T('In your own team ' + r.own.candidates.length + ' could still take it: ', 'I ditt eget team kan ' + r.own.candidates.length + ' fortsatt ta den: ')}${r.own.candidates.slice(0, 4).map((c) => esc(c.user.name.split(' ')[0])).join(', ')}</span></div>` : ''}
+      ${ownBlocked.length ? `<p class="small muted">${ic('alert', 12)} ${T('Blocked by the Sunday rule in your team: ', 'Stoppet av søndagsregelen i ditt team: ')}${ownBlocked.map((c) => esc(c.user.name.split(' ')[0])).join(', ')}</p>` : ''}
+      ${blocks}
+      <p class="small muted">${T('Checked: no shift at that time, day-by-day availability, leave, 11 h rest, contract hours and max', 'Sjekket: ingen vakt da, tilgjengelighet dag for dag, fravær, 11 t hvile, avtalte timer og maks')} ${App.tenant.workforce.maxConsecutiveSundays || '—'} ${T('Sundays in a row.', 'søndager på rad.')}</p>
+      ${r.searched.some((s) => s.candidates.length) ? `<div class="row"><button class="btn btn-primary btn-sm" data-action="pbOffer" ${picked ? '' : 'disabled'}>${ic('arrow', 15)} ${T('Offer the shift to the selected', 'Tilby vakten til de valgte')} (${picked})</button></div>` : ''}
+    </div>`;
+  }
+
+  function botHtml() {
+    const s = pb();
+    const days = Array.from({ length: 14 }, (_, i) => W.addDays(W.today(), i));
+    const locsOpts = api.catalog.locations().filter((l) => App.store.db.users.some((u) => u.locationId === l.id && (u.role === 'staff' || u.role === 'admin')));
+    app.ui.afterRender = null;
+    setTimeout(() => { const el = document.getElementById('pbLog'); if (el) el.scrollTop = el.scrollHeight; const i = document.getElementById('pbInput'); if (i && !('ontouchstart' in window)) i.focus(); }, 30);
+    return `${K.sheetHead(T('Planning assistant', 'Planleggingsassistent'), T('Find people from your other restaurants to cover a shift — with all the rules checked.', 'Finn folk fra de andre restaurantene til å dekke en vakt — med alle regler sjekket.'))}
+      <div class="pb-log" id="pbLog">
+        ${s.msgs.length ? '' : `<div class="pb-hello">${ic('sparkle', 22)}<p>${T('Ask in your own words. For example:', 'Spør med dine egne ord. For eksempel:')}</p>
+          <div class="chips wrap">${[T('How is Løkka for Sunday? At Frogner I need 2 people in the evening', 'Hvordan ser Løkka ut søndag? På Frogner trenger jeg 2 personer på kvelden'), T('Who can cover Saturday 16–23:30?', 'Hvem kan dekke lørdag 16–23:30?'), T('I need 1 person tomorrow in the morning', 'Jeg trenger 1 person i morgen formiddag')].map((x) => `<button class="chip" data-action="pbAsk" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>`}
+        ${s.msgs.map((m) => m.role === 'user' ? `<div class="msg user">${esc(m.text)}</div>` : `<div class="msg bot pb-bot">${m.html}</div>`).join('')}
+      </div>
+      <form class="pb-form" data-form="pbAsk"><label class="sr-only" for="pbInput">${T('Question', 'Spørsmål')}</label><input id="pbInput" class="input" name="q" autocomplete="off" placeholder="${T('e.g. At Frogner I need 2 people on Sunday evening', 'f.eks. På Frogner trenger jeg 2 personer søndag kveld')}"><button class="btn btn-primary" aria-label="${T('Ask', 'Spør')}">${ic('arrow', 18)}</button></form>
+      <details class="pb-manual"><summary class="small">${T('Or fill it in', 'Eller fyll inn')}</summary>
+        <form class="pb-grid" data-form="pbManual">
+          <label><span class="small muted">${T('Restaurant that needs people', 'Restaurant som trenger folk')}</span><select class="input input-sm" name="targetLoc">${locsOpts.map((l) => `<option value="${l.id}" ${l.id === loc() ? 'selected' : ''}>${esc(shortLoc(l))}</option>`).join('')}</select></label>
+          <label><span class="small muted">${T('Look in', 'Søk i')}</span><select class="input input-sm" name="sourceLoc"><option value="">${T('Nearest restaurants', 'Nærmeste restauranter')}</option>${locsOpts.map((l) => `<option value="${l.id}">${esc(shortLoc(l))}</option>`).join('')}</select></label>
+          <label><span class="small muted">${T('Day', 'Dag')}</span><select class="input input-sm" name="date">${days.map((d) => `<option value="${d}" ${W.weekday(d) === 0 && d === days.find((x) => W.weekday(x) === 0) ? 'selected' : ''}>${K.fmtDay(d, 'short')}</option>`).join('')}</select></label>
+          <label><span class="small muted">${T('From', 'Fra')}</span><input class="input input-sm" type="time" name="start" value="16:00"></label>
+          <label><span class="small muted">${T('To', 'Til')}</span><input class="input input-sm" type="time" name="end" value="22:30"></label>
+          <label><span class="small muted">${T('People', 'Personer')}</span><input class="input input-sm input-num" type="number" name="count" value="2" min="1" max="10"></label>
+          <button class="btn btn-dark btn-sm">${ic('search', 15)} ${T('Find cover', 'Finn dekning')}</button></form></details>`;
+  }
+  const openBot = () => app.modal(botHtml(), 'sheet-chat plan-bot');
+
+  function answer(q) {
+    const s = pb();
+    if (!q.date) return `<p>${T('Which day do you need cover?', 'Hvilken dag trenger du dekning?')}</p><div class="chips wrap">${Array.from({ length: 7 }, (_, i) => W.addDays(W.today(), i)).map((d) => `<button class="chip" data-action="pbDay" data-d="${d}">${K.fmtDay(d, 'short')}</button>`).join('')}</div>`;
+    if (!q.start) { q.start = '16:00'; q.end = W.weekday(q.date) === 5 || W.weekday(q.date) === 6 ? '23:30' : '22:30'; q.assumed = true; }
+    const r = api.cover.find(q);
+    s.last = r; s.sel = {};
+    return (q.assumed ? `<p class="small muted">${T('No time given — I used the evening shift ', 'Ingen tid oppgitt — jeg brukte kveldsvakten ')}${q.start}–${q.end}. ${T('Write e.g. "11–17" to change it.', 'Skriv f.eks. «11–17» for å endre.')}</p>` : '') + resultCard(r);
+  }
+  function ask(text) {
+    const s = pb();
+    s.msgs.push({ role: 'user', text });
+    const q = api.cover.parse(text, { targetLoc: loc() });
+    s.pending = q;
+    s.msgs.push({ role: 'bot', html: answer(q) });
+    openBot();
+  }
+  function offerSheet() {
+    const s = pb(); const r = s.last; if (!r) return '';
+    const ids = Object.keys(s.sel).filter((k) => s.sel[k]); const q = r.req;
+    const me = api.auth.me(); const target = shortLoc(r.target);
+    const msg = T(`Hi {name}! We need help at ${App.tenant.name} ${target} on ${K.fmtDay(q.date)}, ${q.start}–${q.end}. According to your availability you are free then. Would you like the shift? Tap "Request shift" in Schedule → Open shifts. Thanks! — ${me.name.split(' ')[0]}`,
+      `Hei {name}! Vi trenger hjelp på ${App.tenant.name} ${target} ${K.fmtDay(q.date)}, ${q.start}–${q.end}. Ifølge tilgjengeligheten din er du ledig da. Vil du ta vakten? Trykk «Be om vakten» i Vakter → Ledige vakter. Takk! — ${me.name.split(' ')[0]}`);
+    const people = ids.map((id) => api.people.get(id)).filter(Boolean);
+    const mgrs = [...new Set(people.map((p) => p.locationId))].map((lid) => App.store.db.users.filter((u) => u.role === 'admin' && u.locationId === lid && u.id !== me.id)).flat();
+    return `<form data-form="pbSend" class="admin-sheet">${K.sheetHead(T('Offer the shift', 'Tilby vakten'), `${esc(target)} · ${esc(K.fmtDay(q.date))} · ${q.start}–${q.end}`)}
+      <div class="stack">
+        <div class="row">${people.map((p) => `<span class="pb-chip">${K.avatar(p, 24)} ${esc(p.name)}</span>`).join('')}</div>
+        <label class="field-label" for="pbMsg">${T('Direct message ({name} is replaced by each first name)', 'Direktemelding ({name} byttes med hvert fornavn)')}</label>
+        <textarea id="pbMsg" class="input" name="message" rows="5">${esc(msg)}</textarea>
+        <label class="opt"><input type="checkbox" name="notifyManagers" checked><span><b>${T('Tell their manager', 'Gi beskjed til lederen deres')}</b>${mgrs.length ? ' — ' + mgrs.map((m) => esc(m.name)).join(', ') : ''}<br><span class="small muted">${T('Notification + direct message so they know their staff may work at your restaurant.', 'Varsel + direktemelding så de vet at deres ansatte kan jobbe hos deg.')}</span></span></label>
+        <p class="small muted">${ic('plus', 13)} ${T(`Creates ${q.count || 1} open shift(s) at ${target} that only these people (and your own team) can request. You approve as usual.`, `Lager ${q.count || 1} ledig(e) vakt(er) på ${target} som bare disse (og ditt eget team) kan be om. Du godkjenner som vanlig.`)}</p>
+        <div class="row"><button class="btn btn-primary btn-grow">${ic('arrow', 16)} ${T('Send offer', 'Send tilbud')}</button><button type="button" class="btn btn-ghost" data-action="planBotOpen">${T('Back', 'Tilbake')}</button></div>
+      </div></form>`;
+  }
+
+  Object.assign(App.actions, {
+    planBotOpen() { openBot(); },
+    pbAsk(d) { ask(d.q); },
+    pbDay(d) { const s = pb(); const q = Object.assign({}, s.pending || {}, { date: d.d }); s.pending = q; s.msgs.push({ role: 'user', text: K.fmtDay(d.d, 'short') }); s.msgs.push({ role: 'bot', html: answer(q) }); openBot(); },
+    pbOffer() { app.modal(offerSheet(), 'plan-bot'); },
+  });
+  Object.assign(App.changes, { pbPick(el) { pb().sel[el.value] = el.checked; el.closest('.pb-person').classList.toggle('on', el.checked); const n = Object.values(pb().sel).filter(Boolean).length; const b = document.querySelector('[data-action="pbOffer"]'); if (b) { b.disabled = !n; b.lastChild.textContent = ` ${T('Offer the shift to the selected', 'Tilby vakten til de valgte')} (${n})`; } } });
+  Object.assign(App.forms, {
+    pbAsk(data) { if ((data.q || '').trim()) ask(data.q.trim()); },
+    pbManual(data) {
+      const s = pb(); const q = { targetLoc: data.targetLoc, sourceLoc: data.sourceLoc || null, date: data.date, start: data.start, end: data.end, count: Number(data.count) || 1 };
+      s.msgs.push({ role: 'user', text: `${shortLoc(api.catalog.location(q.targetLoc))} · ${K.fmtDay(q.date, 'short')} ${q.start}–${q.end} · ${q.count}` });
+      s.pending = q; s.msgs.push({ role: 'bot', html: answer(q) }); openBot();
+    },
+    pbSend(data) {
+      const s = pb(); const q = s.last.req; const ids = Object.keys(s.sel).filter((k) => s.sel[k]);
+      const r = api.cover.offer({ targetLoc: q.targetLoc, date: q.date, start: q.start, end: q.end, count: q.count || ids.length, userIds: ids, message: data.message, notifyManagers: !!data.notifyManagers });
+      const names = ids.map((id) => api.people.get(id).name.split(' ')[0]).join(', ');
+      s.msgs.push({ role: 'bot', html: `<div class="notice notice-green small">${ic('check', 16)} <span><b>${T('Done.', 'Ferdig.')}</b> ${T(`Offer sent to ${names}. ${r.shifts.length} open shift(s) created at ${shortLoc(api.catalog.location(q.targetLoc))}`, `Tilbud sendt til ${names}. ${r.shifts.length} ledig(e) vakt(er) laget på ${shortLoc(api.catalog.location(q.targetLoc))}`)}${data.notifyManagers ? T(' and their manager has been told.', ' og lederen deres har fått beskjed.') : '.'} ${T('You will get a notification when someone requests it.', 'Du får varsel når noen ber om den.')}</span></div>` });
+      s.last = null; s.sel = {}; openBot(); app.render();
+    },
+  });
+
   // ---------- workforce overrides (shared by phone and server) ----------
   // (defined in planning service as W.applyOverrides)
 

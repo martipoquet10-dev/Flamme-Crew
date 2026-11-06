@@ -159,6 +159,7 @@
           ${sectionBar}
           <main class="content sec-${section}" id="main">${content}</main>
         </div>
+        ${section === 'shifts' && api.auth.hasRole('admin') && App.views.planBotFab ? App.views.planBotFab() : ''}
         ${section === 'store' && K.mod('emergency') && !path.startsWith('/staff/emergency') && path !== '/staff/assistant' ? `<a href="#/staff/emergency" class="sos-btn" aria-label="${t('em.title')}">${ic('alert', 20)}<span>${t('em.sos')}</span></a>` : ''}
       </div>
       <nav class="tabbar">${tabs.map(([h, label, i, k, n]) => `<a href="${h}" class="${tabOn(k) ? 'on' : ''}" style="${k !== 'home' && k !== 'ai' ? '--tc:' + groupMeta(k).color : ''}">${ic(i, 22)}<span>${esc(label)}</span>${badge(n)}</a>`).join('')}</nav>`;

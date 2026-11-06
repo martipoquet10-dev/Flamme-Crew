@@ -25,6 +25,7 @@ export const ACTIONS = new Set([
   'surveys.respond', 'kudos.give', 'kudos.cheer',
   'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
   'availability.setDates', 'templates.save', 'templates.apply', 'templates.remove', 'autoplan.run', 'autoplan.undo',
+  'cover.offer',
 ]);
 
 const ID_RX = /^[a-z]{1,6}-[a-z0-9]{8,24}$/;
