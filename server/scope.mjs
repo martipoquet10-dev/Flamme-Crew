@@ -33,6 +33,6 @@ export function scopeFor(db, user, isMember) {
   // customer-side data is not needed in the staff app
   d.orders = []; d.ledger = []; d.reviews = []; d.cateringRequests = []; d.incidents = [];
   // sales figures, budgets and pay locks are for managers only
-  d.salesActual = {}; d.salesForecast = {}; d.laborBudget = {};
+  d.salesActual = {}; d.salesForecast = {}; d.laborBudget = {}; d.weekTemplates = []; d.autoPlanLog = [];
   return d;
 }

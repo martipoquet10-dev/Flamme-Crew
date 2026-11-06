@@ -41,6 +41,7 @@
       m('timesheets') && ['#/staff/shifts/hours', T('Timesheets', 'Timelister'), 'wallet'],
       m('timesheets') && ['#/staff/shifts/report', T('Hours report', 'Timerapport'), 'list'],
       admin && m('labor') && ['#/staff/shifts/labor', T('Labour & forecast', 'Lønn og prognose'), 'chart', false, 'mgr'],
+      admin && m('labor') && ['#/staff/shifts/hq', T('Head office', 'Hovedkontor'), 'store', false, 'mgr'],
       admin && ['#/staff/shifts/approvals', T('Approvals', 'Godkjenninger'), 'check', false, 'mgr'],
       admin && m('payroll') && ['#/staff/shifts/payroll', T('Payroll export', 'Lønnseksport'), 'download', false, 'mgr'],
     ].filter(Boolean) });
@@ -60,7 +61,9 @@
       ['#/admin/docs', T('Guides & AI sources', 'Guider og AI-kilder'), 'book'],
       ['#/admin/prep', T('Prep settings', 'Forberedelsesoppsett'), 'clipboard'],
       ['#/admin/users', T('Users & roles', 'Brukere og roller'), 'user'],
+      ['#/admin/payrules', T('Pay & time rules', 'Lønns- og tidsregler'), 'wallet'],
       ['#/admin/settings', T('App settings', 'Appinnstillinger'), 'sliders'],
+      ['#/kiosk', T('Kiosk mode', 'Kioskmodus'), 'phone'],
     ] });
     return groups;
   }
@@ -512,7 +515,7 @@
     },
     menuSearch(data) { app.ui.menuQ = data.q; app.render(); },
     saveSettings(data) {
-      const o = { appName: data.appName, primary: data.primary, sections: {}, modules: {} };
+      const o = { appName: data.appName, primary: data.primary, sections: {}, modules: {}, workforce: (App.store.db.tenantOverrides || {}).workforce };
       ['store', 'shifts', 'community'].forEach((k) => { o.sections[k] = { enabled: !!data['sec_' + k], color: data['color_' + k], label: { en: data['label_' + k + '_en'], nb: data['label_' + k + '_nb'] } }; });
       Object.keys(tn().modules).forEach((id) => { if (('mod_' + id) in data || document.querySelector(`[name="mod_${id}"]`)) o.modules[id] = !!data['mod_' + id]; });
       api.settings.saveOverrides(o);

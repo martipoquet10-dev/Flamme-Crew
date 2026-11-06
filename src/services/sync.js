@@ -27,6 +27,7 @@ App.sync = (function () {
     'events.rsvp', 'events.create', 'learning.completeLesson', 'learning.submitQuiz', 'docs.confirmRead',
     'surveys.respond', 'kudos.give', 'kudos.cheer',
     'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
+    'availability.setDates', 'templates.save', 'templates.apply', 'templates.remove', 'autoplan.run', 'autoplan.undo',
   ];
 
   async function call(method, route, body) {
@@ -132,6 +133,8 @@ App.sync = (function () {
   }
   const setPin = (pin, current, userId) => call('POST', 'pin', { pin, current, userId });
   const reset = () => call('POST', 'reset').then(refresh);
+  // Store kiosk: the server checks the employee's own PIN, then punches for them
+  const kiosk = (userId, pin, op) => call('POST', 'kiosk', { userId, pin, op, lang: App.i18n.lang }).then((r) => { refresh(); return r; });
 
   // AI assistant on the server (Claude). Rejects when it is not configured.
   const askAI = (question, ctx) => call('POST', 'assistant', { question, lang: App.i18n.lang, locationId: ctx.locationId, history: ctx.history || [] });
@@ -145,7 +148,7 @@ App.sync = (function () {
       if (res.ok) health = await res.json();
     } catch (e) { /* no server → offline demo */ }
     if (!health || !health.ok) return false;
-    S.live = true; S.ai = !!health.ai; S.demoPin = !!health.demoPin;
+    S.live = true; S.ai = !!health.ai; S.demoPin = !!health.demoPin; S.pos = !!health.pos;
     MUTATIONS.forEach(wrap);
     // Data comes from the server; only device settings (language) are kept locally.
     const origSave = App.store.save;
@@ -160,5 +163,5 @@ App.sync = (function () {
     return true;
   }
 
-  return Object.assign(S, { start, login, logout, refresh, setPin, reset, askAI });
+  return Object.assign(S, { start, login, logout, refresh, setPin, reset, askAI, kiosk });
 })();

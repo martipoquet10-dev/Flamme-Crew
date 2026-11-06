@@ -122,7 +122,17 @@ App.demo = App.demo || {};
       'e-jonas': { weekly: { 1: { state: 'unavailable' }, 2: { state: 'unavailable' } } },
       'e-lucia': { weekly: { 0: { state: 'preferred' }, 6: { state: 'preferred' } } },
     };
-    const unavailable = (uid, key) => { const a = availability[uid]; const w = a && a.weekly[weekday(key)]; return w && w.state === 'unavailable'; };
+    // Day-by-day availability (many staff have a second job): set per date by the employee
+    const D = (n) => addDays(today, n);
+    availability['e-lucia'].dates = {
+      [D(1)]: { state: 'partial', ranges: [{ from: '16:00', to: '23:30' }], note: 'Annen jobb om morgenen / other job in the morning' },
+      [D(3)]: { state: 'partial', ranges: [{ from: '11:00', to: '15:00' }, { from: '19:00', to: '23:30' }], note: '' },
+      [D(5)]: { state: 'unavailable', ranges: [], note: 'Annen jobb / other job' },
+    };
+    availability['e-tobias'] = { weekly: {}, dates: { [D(2)]: { state: 'partial', ranges: [{ from: '17:00', to: '23:30' }], note: 'Kontorjobb til 16 / office job until 4 pm' }, [D(9)]: { state: 'unavailable', ranges: [], note: '' } } };
+    availability['e-oskar'] = { weekly: {}, dates: { [D(1)]: { state: 'unavailable', ranges: [], note: 'Skift på lageret / warehouse shift' }, [D(4)]: { state: 'partial', ranges: [{ from: '10:00', to: '15:00' }], note: '' } } };
+    availability['u-staff'].dates = { [D(6)]: { state: 'partial', ranges: [{ from: '15:00', to: '23:30' }], note: 'Eksamen om morgenen / exam in the morning' } };
+    const unavailable = (uid, key) => { const a = availability[uid]; if (!a) return false; const d = a.dates && a.dates[key]; if (d) return d.state === 'unavailable'; const w = a.weekly[weekday(key)]; return w && w.state === 'unavailable'; };
 
     const openPlan = new Set([addDays(thisMon, 5) + '|front|12:00', addDays(thisMon, 11) + '|driver|16:00', addDays(thisMon, 13) + '|kitchen|10:00']);
 

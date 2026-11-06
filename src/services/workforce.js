@@ -47,18 +47,32 @@ App.wf = (function () {
 
   // ---------- pay calculation ----------
   // interval list of [Date, Date] (worked time minus breaks) → {hours, supplements:{id:hours}, supplementNok, overtimeHours}
-  function payFor(segments, hourly) {
-    let mins = 0; const sup = {};
+  // ctx: { positionId, user } → decides which supplements this person/shift is eligible for
+  function eligible(s, ctx) {
+    if (!ctx) return true;
+    if (s.groups && s.groups.length && ctx.positionId && !s.groups.includes(ctx.positionId)) return false;
+    if (s.contracts && s.contracts.length && ctx.user && !s.contracts.includes(ctx.user.contract || 'part')) return false;
+    return true;
+  }
+  function payFor(segments, hourly, ctx) {
+    let mins = 0; const sup = {}; const holCache = {};
+    const rules = cfg().supplements.filter((s) => eligible(s, ctx));
+    const holidayOf = (t) => { const k = W.dayKey(t); if (!(k in holCache)) holCache[k] = W.holiday ? W.holiday(k) : null; return holCache[k]; };
     segments.forEach(([a, b]) => {
       for (let t = new Date(a); t < b; t = new Date(t.getTime() + 60000)) {
         mins++;
         const wd = t.getDay(), hm = t.getHours() * 60 + t.getMinutes();
-        cfg().supplements.forEach((s) => { if (s.days.includes(wd) && hm >= W.toMin(s.from) && hm < W.toMin(s.to)) sup[s.id] = (sup[s.id] || 0) + 1 / 60; });
+        const hol = holidayOf(t);
+        // holiday rule: on a public holiday the holiday supplement replaces the normal day/time supplements
+        const holRule = hol && rules.find((s) => s.holiday && (!s.eve || hol.eve) && (s.eve || !hol.eve) && hm >= W.toMin(s.from || '00:00') && hm < W.toMin(s.to || '24:00'));
+        if (holRule) { sup[holRule.id] = (sup[holRule.id] || 0) + 1 / 60; continue; }
+        rules.forEach((s) => { if (!s.holiday && s.days && s.days.includes(wd) && hm >= W.toMin(s.from) && hm < W.toMin(s.to)) sup[s.id] = (sup[s.id] || 0) + 1 / 60; });
       }
     });
     const hours = mins / 60;
     const overtimeHours = Math.max(0, hours - cfg().overtime.dailyHours);
-    const supplementNok = cfg().supplements.reduce((s, x) => s + (sup[x.id] || 0) * x.nokPerHour, 0);
+    const rate = (x) => (x.pct ? (hourly || 0) * x.pct / 100 : x.nokPerHour || 0);
+    const supplementNok = cfg().supplements.reduce((s, x) => s + (sup[x.id] || 0) * rate(x), 0);
     const base = hours * (hourly || 0);
     const overtimeNok = overtimeHours * (hourly || 0) * cfg().overtime.pct / 100;
     return { hours, supplements: sup, supplementNok, overtimeHours, overtimeNok, base, total: base + supplementNok + overtimeNok };
@@ -69,9 +83,24 @@ App.wf = (function () {
     const mid = new Date(a.getTime() + (b - a) / 2);
     return [[a, mid], [new Date(mid.getTime() + s.breakMin * 60000), b]];
   }
+  // Paid start/end of a finished punch: optional "pay from shift start when early" + rounding
+  function paidBounds(p) {
+    let a = new Date(p.in), b = p.out ? new Date(p.out) : new Date();
+    if (!p.out) return [a, b];
+    const s = p.shiftId && db().shifts.find((x) => x.id === p.shiftId);
+    if (cfg().payFromShiftStart && s && a < W.shiftStart(s)) a = W.shiftStart(s);
+    const r = cfg().rounding || {}, m = Number(r.minutes) || 0;
+    if (m) {
+      const step = m * 60000, mode = r.mode || 'nearest';
+      const rnd = (d, how) => new Date(Math[how](d.getTime() / step) * step);
+      a = rnd(a, mode === 'nearest' ? 'round' : mode === 'employee' ? 'floor' : 'ceil');
+      b = rnd(b, mode === 'nearest' ? 'round' : mode === 'employee' ? 'ceil' : 'floor');
+    }
+    return [a, b < a ? a : b];
+  }
   function punchSegments(p) {
-    const end = p.out ? new Date(p.out) : new Date();
-    let segs = [[new Date(p.in), end]];
+    const [start, end] = paidBounds(p);
+    let segs = [[start, end]];
     (p.breaks || []).forEach((br) => {
       const bs = new Date(br.start), be = br.end ? new Date(br.end) : end;
       segs = segs.flatMap(([a, b]) => (be <= a || bs >= b) ? [[a, b]] : [[a, bs], [be, b]].filter(([x, y]) => y > x));
@@ -79,6 +108,18 @@ App.wf = (function () {
     return segs;
   }
   const userOf = (id) => db().users.find((u) => u.id === id);
+
+  // ---------- availability for one person on one date ----------
+  // A date set by the employee wins over their usual week. Result: { state, ranges:[{from,to}], note, source }
+  function availFor(userId, date) {
+    const a = db().availability[userId] || {};
+    const d = (a.dates || {})[date];
+    if (d) return { state: d.state, ranges: d.ranges || [], note: d.note || '', source: 'date' };
+    const w = (a.weekly || {})[W.weekday(date)];
+    if (!w) return { state: 'available', ranges: [], note: '', source: 'default' };
+    const ranges = w.from && w.to && (w.state === 'partial') ? [{ from: w.from, to: w.to }] : [];
+    return { state: w.state === 'preferred' ? 'preferred' : w.state, ranges, note: w.note || '', source: 'weekly', preferFrom: w.from, preferTo: w.to };
+  }
 
   // ---------- conflicts (shown to managers when planning) ----------
   function conflicts(s, list) {
@@ -89,8 +130,10 @@ App.wf = (function () {
     if (all.some((x) => x.date === s.date && W.shiftStart(x) < W.shiftEnd(s) && W.shiftEnd(x) > W.shiftStart(s))) out.push({ kind: 'double', text: T('Double-booked', 'Dobbeltbooket') });
     const lv = db().leave.find((l) => l.userId === s.userId && l.status === 'approved' && s.date >= l.from && s.date <= l.to);
     if (lv) out.push({ kind: 'leave', text: T('On leave', 'Har fravær') });
-    const av = (db().availability[s.userId] || { weekly: {} }).weekly[W.weekday(s.date)];
-    if (av && av.state === 'unavailable') out.push({ kind: 'unavailable', text: T('Marked unavailable', 'Markert utilgjengelig') });
+    const av = availFor(s.userId, s.date);
+    if (av.state === 'unavailable') out.push({ kind: 'unavailable', text: av.note ? T('Unavailable: ' + av.note, 'Utilgjengelig: ' + av.note) : T('Marked unavailable', 'Markert utilgjengelig') });
+    else if (av.state === 'partial' && av.ranges.length && !av.ranges.some((r) => W.toMin(s.start) >= W.toMin(r.from) && (W.toMin(s.end) || 1440) <= (W.toMin(r.to) || 1440)))
+      out.push({ kind: 'outside', text: T('Outside available hours (' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + ')', 'Utenfor tilgjengelige timer (' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + ')') });
     const rest = all.some((x) => { const gapA = (W.shiftStart(s) - W.shiftEnd(x)) / 36e5, gapB = (W.shiftStart(x) - W.shiftEnd(s)) / 36e5; return (gapA > 0 && gapA < 11) || (gapB > 0 && gapB < 11); });
     if (rest) out.push({ kind: 'rest', text: T('Less than 11 h rest (AML § 10-8)', 'Under 11 t hvile (AML § 10-8)') });
     if (u && s.positionId && u.positions && !u.positions.includes(s.positionId)) out.push({ kind: 'position', text: T('Not trained for this position', 'Ikke opplært i denne stillingen') });
@@ -168,7 +211,7 @@ App.wf = (function () {
       return db().shifts.filter((s) => s.open && !s.userId && s.published && s.locationId === (locationId || u.locationId) && W.shiftEnd(s) > new Date())
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     },
-    cost(s) { const u = s.userId && userOf(s.userId); return payFor(shiftSegments(s), u ? u.hourlyNok : avgWage(s.locationId)); },
+    cost(s) { const u = s.userId && userOf(s.userId); return payFor(shiftSegments(s), u ? u.hourlyNok : avgWage(s.locationId), { positionId: s.positionId, user: u }); },
     weekStats(locationId, mon) {
       req('staff');
       return Array.from({ length: 7 }, (_, i) => {
@@ -264,6 +307,19 @@ App.wf = (function () {
       if (!data || data.state === 'available') delete a.weekly[wd]; else a.weekly[wd] = { state: data.state, from: data.from || '', to: data.to || '', note: data.note || '' };
       return commit(a);
     },
+    forDate: availFor,
+    // Day-by-day: set one or many dates. data: { state: 'available'|'unavailable'|'partial'|'clear', ranges:[{from,to}], note }
+    setDates(dates, data) {
+      const u = req('staff'); const a = api.availability.get(u.id); a.dates = a.dates || {};
+      const ranges = ((data && data.ranges) || []).filter((r) => r && /^\d\d:\d\d$/.test(r.from) && /^\d\d:\d\d$/.test(r.to) && r.from < r.to).slice(0, 3);
+      [].concat(dates).filter((d) => /^\d{4}-\d\d-\d\d$/.test(d)).slice(0, 62).forEach((d) => {
+        if (!data || data.state === 'clear') delete a.dates[d];
+        else a.dates[d] = { state: data.state === 'partial' && !ranges.length ? 'unavailable' : data.state, ranges: data.state === 'partial' ? ranges : [], note: String(data.note || '').slice(0, 80), at: new Date().toISOString() };
+      });
+      // tidy: forget dates in the past
+      Object.keys(a.dates).forEach((d) => { if (d < W.addDays(W.today(), -7)) delete a.dates[d]; });
+      return commit(a);
+    },
   };
 
   // ---------- leave / absence ----------
@@ -332,7 +388,8 @@ App.wf = (function () {
       return db().punches.filter((p) => (!uidF || p.userId === uidF) && (!f.locationId || p.locationId === f.locationId) && (!f.from || p.date >= f.from) && (!f.to || p.date <= f.to) && (!f.status || p.status === f.status))
         .sort((a, b) => b.in.localeCompare(a.in));
     },
-    pay(p) { const u = userOf(p.userId); return payFor(punchSegments(p), u && u.hourlyNok); },
+    pay(p) { const u = userOf(p.userId); const s = p.shiftId && db().shifts.find((x) => x.id === p.shiftId); return payFor(punchSegments(p), u && u.hourlyNok, { positionId: s ? s.positionId : u && u.positions && u.positions[0], user: u }); },
+    paidBounds,
     deviation(p) {
       const s = p.shiftId && db().shifts.find((x) => x.id === p.shiftId);
       if (!s) return { unscheduled: true };

@@ -128,7 +128,9 @@
       <div class="row">
         <div class="seg seg-sm"><button class="${view === 'week' ? 'on' : ''}" data-action="rotaView" data-v="week">${ic('week', 16)} ${T('Week', 'Uke')}</button><button class="${view === 'day' ? 'on' : ''}" data-action="rotaView" data-v="day">${ic('list', 16)} ${T('Day', 'Dag')}</button></div>
         <select class="input input-sm" data-change="rotaPos"><option value="">${T('All positions', 'Alle stillinger')}</option>${api.people.positions().map((p) => `<option value="${p.id}" ${p.id === posF ? 'selected' : ''}>${esc(L(p.name))}</option>`).join('')}</select>
-        ${isMgr() ? `<button class="btn btn-ghost btn-sm" data-action="copyWeek">${ic('copy', 16)} ${T('Copy last week', 'Kopier forrige uke')}</button>
+        ${isMgr() ? `<button class="btn btn-ghost btn-sm" data-action="rotaAuto">${ic('sparkle', 16)} ${T('Auto-plan', 'Autoplan')}</button>
+          <button class="btn btn-ghost btn-sm" data-action="rotaTemplates">${ic('doc', 16)} ${T('Templates', 'Maler')}</button>
+          <button class="btn btn-ghost btn-sm" data-action="copyWeek">${ic('copy', 16)} ${T('Copy last week', 'Kopier forrige uke')}</button>
           <button class="btn btn-ghost btn-sm" data-action="newShift" data-date="${mon >= W.monday(today) ? (mon === W.monday(today) ? today : mon) : mon}">${ic('plus', 16)} ${T('Shift', 'Vakt')}</button>
           <button class="btn btn-primary btn-sm ${drafts ? '' : 'disabled'}" data-action="publishWeek">${ic('send', 16)} ${T('Publish', 'Publiser')}${drafts ? ` (${drafts})` : ''}</button>` : ''}
       </div></div>`;
@@ -138,37 +140,40 @@
         <div class="kpi ${weekCost / weekRev * 100 > C().laborTargetPct ? 'warn' : 'ok'}"><span class="small muted">${T('Labour % of forecast sales', 'Lønn % av prognose')}</span><b>${(weekCost / weekRev * 100).toFixed(1)} %</b><span class="small muted">${T('target', 'mål')} ${C().laborTargetPct} %</span></div>
         <div class="kpi"><span class="small muted">${T('Open shifts', 'Ledige vakter')}</span><b>${all.filter((s) => !s.userId).length}</b></div>
       </div>${drafts ? `<div class="notice notice-amber small">${ic('alert', 16)} <span>${T(drafts + ' draft shifts are only visible to managers until you publish.', drafts + ' utkast er bare synlige for ledere til du publiserer.')}</span></div>` : ''}` : '';
-    const legend = `<div class="legend">${api.people.positions().map((p) => `<span>${posDot(p.id)} ${esc(L(p.name))}</span>`).join('')}<span><i class="leg-leave"></i> ${T('Leave', 'Fravær')}</span><span><i class="leg-unav"></i> ${T('Unavailable', 'Utilgjengelig')}</span>${isMgr() ? `<span><i class="leg-draft"></i> ${T('Draft', 'Utkast')}</span>` : ''}</div>`;
+    const legend = `<div class="legend">${api.people.positions().map((p) => `<span>${posDot(p.id)} ${esc(L(p.name))}</span>`).join('')}<span><i class="leg-leave"></i> ${T('Leave', 'Fravær')}</span><span><i class="leg-unav"></i> ${T('Unavailable', 'Utilgjengelig')}</span><span><i class="leg-auto"></i> ${T('Auto-planned', 'Autoplanlagt')}</span><span><i class="leg-hol"></i> ${T('Public holiday', 'Helligdag')}</span>${isMgr() ? `<span><i class="leg-draft"></i> ${T('Draft', 'Utkast')}</span>` : ''}</div>`;
     return `<div class="page-w wide">
       ${head(T('Rota', 'Vaktplan'), esc((api.catalog.location(l) || {}).name) + (isMgr() ? ' · ' + T('Click an empty cell to add a shift.', 'Klikk på en tom celle for å legge til en vakt.') : ''))}
       ${toolbar}${summary}
       ${view === 'week' ? weekGrid(days, team, all, leave, stats) : dayTimeline(days, all, leave)}
       ${legend}
+      ${isMgr() && view === 'week' ? `<p class="small muted">${ic('arrow', 13)} ${T('Drag a future shift to another person or day to move it. Hold Ctrl (⌘ on Mac) while dropping to copy it.', 'Dra en fremtidig vakt til en annen person eller dag for å flytte den. Hold Ctrl (⌘ på Mac) når du slipper for å kopiere.')}</p>` : ''}
     </div>`;
   }
   function chip(s, compact) {
     const p = api.people.position(s.positionId);
     const cf = isMgr() ? api.shifts.conflicts(s) : [];
     const mine = s.userId === (api.auth.me() || {}).id;
-    return `<button class="rchip ${s.published ? '' : 'draft'} ${mine ? 'mine' : ''} ${s.userId ? '' : 'open'}" style="--c:${p.color}" data-action="openShift" data-id="${s.id}" title="${esc(posName(s.positionId))}${cf.length ? ' · ⚠ ' + cf.map((c) => L(c.text)).join(', ') : ''}">
+    return `<button class="rchip ${s.published ? '' : 'draft'} ${mine ? 'mine' : ''} ${s.userId ? '' : 'open'} ${s.auto ? 'auto' : ''}" style="--c:${p.color}" data-action="openShift" data-id="${s.id}" ${isMgr() && W.shiftStart(s) > new Date() ? `draggable="true" data-drag="${s.id}"` : ''} title="${esc(posName(s.positionId))}${cf.length ? ' · ⚠ ' + cf.map((c) => L(c.text)).join(', ') : ''}">
       <b>${s.start}–${s.end}</b>${compact ? '' : `<span>${esc(posName(s.positionId))}</span>`}${cf.length ? `<i class="cf">!</i>` : ''}</button>`;
   }
   function weekGrid(days, team, all, leave, stats) {
     const today = W.today();
-    const unav = (uid, d) => { const a = (App.store.db.availability[uid] || { weekly: {} }).weekly[W.weekday(d)]; return a && a.state === 'unavailable'; };
+    const avOf = (uid, d) => api.availability.forDate(uid, d);
+    const unav = (uid, d) => avOf(uid, d).state === 'unavailable';
+    const avHint = (uid, d) => { if (!isMgr()) return ''; const a = avOf(uid, d); if (a.state === 'partial' && a.ranges.length) return `<span class="av-hint" title="${esc(a.note || '')}">${ic('clock', 11)} ${a.ranges.map((r) => r.from.replace(':00', '') + '–' + r.to.replace(':00', '')).join(' · ')}</span>`; if (a.state === 'unavailable' && a.note) return `<span class="av-hint">${esc(a.note).slice(0, 28)}</span>`; return ''; };
     const open = all.filter((s) => !s.userId);
     const row = (p) => {
       const mine = all.filter((s) => s.userId === p.id);
       const h = mine.reduce((x, s) => x + W.shiftHours(s), 0);
       return `<div class="rg-row ${p.id === api.auth.me().id ? 'me' : ''}"><div class="rg-person">${K.avatar(p, 32)}<div><b>${esc(p.name)}</b><span class="small muted">${W.fmtH(h)}${p.contractHours ? ' / ' + p.contractHours : ''}</span></div></div>
         ${days.map((d) => { const ss = mine.filter((s) => s.date === d); const lv = leave.find((x) => x.userId === p.id && d >= x.from && d <= x.to); const un = !ss.length && unav(p.id, d);
-          return `<div class="rg-cell ${d === today ? 'today' : ''} ${lv ? 'leave' : ''} ${un ? 'unav' : ''}" ${isMgr() && !ss.length ? `data-action="newShift" data-date="${d}" data-user="${p.id}"` : ''}>
+          return `<div class="rg-cell ${d === today ? 'today' : ''} ${lv ? 'leave' : ''} ${un ? 'unav' : ''}" data-cell-date="${d}" data-cell-user="${p.id}" ${isMgr() && !ss.length ? `data-action="newShift" data-date="${d}" data-user="${p.id}"` : ''}>${!lv ? avHint(p.id, d) : ''}
             ${lv ? `<span class="lv-tag">${ic(lv.type === 'sick' ? 'medical' : 'beach', 13)} ${lv.type === 'sick' ? T('Sick', 'Syk') : T('Leave', 'Fravær')}</span>` : ''}${ss.map((s) => chip(s)).join('')}${isMgr() && !ss.length && !lv ? `<span class="rg-add">${ic('plus', 14)}</span>` : ''}</div>`; }).join('')}</div>`;
     };
     return `<div class="rota-scroll"><div class="rgrid">
-      <div class="rg-row rg-head"><div class="rg-person"></div>${days.map((d, i) => `<div class="rg-dh ${d === today ? 'today' : ''}"><b>${K.fmtDay(d, 'wd')}</b><span>${K.fmtDay(d, 'num')}. ${K.fmtDay(d, 'month')}</span><em>${W.fmtH(stats[i].hours)}${isMgr() ? ' · ' + Math.round(stats[i].pct) + '%' : ''}</em></div>`).join('')}</div>
+      <div class="rg-row rg-head"><div class="rg-person"></div>${days.map((d, i) => `<div class="rg-dh ${d === today ? 'today' : ''} ${W.holiday(d) ? 'hol' : ''}" title="${W.holiday(d) ? esc(L(W.holiday(d).name)) : ''}"><b>${K.fmtDay(d, 'wd')}</b>${W.holiday(d) ? `<i class="hol-tag">${esc(L(W.holiday(d).name))}</i>` : ''}<span>${K.fmtDay(d, 'num')}. ${K.fmtDay(d, 'month')}</span><em>${W.fmtH(stats[i].hours)}${isMgr() ? ' · ' + Math.round(stats[i].pct) + '%' : ''}</em></div>`).join('')}</div>
       ${open.length || isMgr() ? `<div class="rg-row open-row"><div class="rg-person"><span class="av" style="--s:32px;--c:#ADB5BD">${ic('plusCircle', 16)}</span><div><b>${T('Open shifts', 'Ledige vakter')}</b><span class="small muted">${open.length}</span></div></div>
-        ${days.map((d) => `<div class="rg-cell ${d === today ? 'today' : ''}" ${isMgr() ? `data-action="newShift" data-date="${d}" data-user=""` : ''}>${open.filter((s) => s.date === d).map((s) => chip(s)).join('')}</div>`).join('')}</div>` : ''}
+        ${days.map((d) => `<div class="rg-cell ${d === today ? 'today' : ''}" data-cell-date="${d}" data-cell-user="" ${isMgr() ? `data-action="newShift" data-date="${d}" data-user=""` : ''}>${open.filter((s) => s.date === d).map((s) => chip(s)).join('')}</div>`).join('')}</div>` : ''}
       ${team.map(row).join('')}
       ${isMgr() ? `<div class="rg-row rg-foot"><div class="rg-person small muted">${T('Cost / forecast', 'Kostnad / prognose')}</div>${stats.map((st) => `<div class="rg-cost"><b>${U.nok(st.cost)}</b><span class="small muted">${U.nok(st.revenue)}</span><span class="bar"><i style="width:${Math.min(100, st.pct / 50 * 100)}%;background:${st.pct > C().laborTargetPct ? 'var(--red)' : 'var(--green)'}"></i></span></div>`).join('')}</div>` : ''}
     </div></div>`;
@@ -227,6 +232,7 @@
     return `<div class="page-w narrow">
       ${head(T('Time clock', 'Stemple'), T('Clock in when you arrive and out when you leave. Your hours go straight to your timesheet.', 'Stemple inn når du kommer og ut når du går. Timene går rett inn i timelisten din.'))}
       ${App.views.clockCard()}
+      ${isMgr() ? `<div class="row"><button class="btn btn-dark btn-sm" data-action="kioskStart">${ic('phone', 16)} ${T('Turn this device into the store kiosk', 'Gjør denne enheten til butikkens kiosk')}</button><span class="small muted">${T('For a tablet at the entrance: everyone clocks in with their own PIN.', 'For et nettbrett ved inngangen: alle stempler med egen PIN-kode.')}</span></div>` : ''}
       <div class="notice notice-ink small">${ic('location', 16)} <span>${T('Location check: you are at', 'Stedssjekk: du er på')} <b>${esc((api.catalog.location(loc()) || {}).name)}</b> <span class="badge badge-demo">${T('simulated', 'simulert')}</span> · ${T('You can clock in up to', 'Du kan stemple inn inntil')} ${C().clockInEarlyMinutes} min ${T('before your shift.', 'før vakten.')}</span></div>
       ${active ? `<section class="card"><h2 class="h3">${T('Today', 'I dag')}</h2><ul class="tl-log"><li><span>${U.fmtTime(active.in)}</span>${T('Clocked in', 'Stemplet inn')}</li>${active.breaks.map((b) => `<li><span>${U.fmtTime(b.start)}</span>${T('Break started', 'Pause startet')}</li>${b.end ? `<li><span>${U.fmtTime(b.end)}</span>${T('Break ended', 'Pause avsluttet')}</li>` : ''}`).join('')}</ul></section>` : ''}
       <h2 class="h3">${T('Recent punches', 'Siste stemplinger')}</h2>
@@ -314,20 +320,78 @@
   }
 
   // ================= AVAILABILITY =================
+  // Many staff have another job, so availability is set day by day (dates win over the usual week).
+  const AVS = () => ({ available: [T('Available', 'Tilgjengelig'), 'check'], preferred: [T('Prefer to work', 'Jobber gjerne'), 'star'], partial: [T('Only some hours', 'Kun noen timer'), 'clock'], unavailable: [T('Not available', 'Ikke tilgjengelig'), 'x'] });
+  const rangeText = (av) => (av.ranges || []).map((r) => r.from.replace(':00', '') + '–' + r.to.replace(':00', '')).join(' · ');
   function availability() {
+    const tab = app.ui.avTab || 'days';
+    const mgr = isMgr();
+    const tabs = `<div class="seg seg-sm">${[['days', T('Day by day', 'Dag for dag'), 'calendar'], ['week', T('Usual week', 'Vanlig uke'), 'week']].concat(mgr ? [['team', T('Team', 'Team'), 'users']] : []).map(([k, l, i]) => `<button class="${tab === k ? 'on' : ''}" data-action="avTab" data-t="${k}">${ic(i, 15)} ${l}</button>`).join('')}</div>`;
+    return `<div class="page-w ${tab === 'team' ? 'wide' : 'narrow'}">
+      ${head(T('Availability', 'Tilgjengelighet'), T('Set the hours you can work, day by day. Your manager and the automatic planner use this when building the rota.', 'Sett timene du kan jobbe, dag for dag. Leder og den automatiske planleggeren bruker dette når vaktplanen lages.'), tabs)}
+      ${tab === 'week' ? usualWeek() : tab === 'team' ? teamAvailability() : dayByDay()}
+    </div>`;
+  }
+  function dayByDay() {
+    const u = api.auth.me();
+    const start = W.monday(W.today());
+    const sel = app.ui.avSel = app.ui.avSel || [];
+    const days = Array.from({ length: 42 }, (_, i) => W.addDays(start, i));
+    const st = AVS();
+    const mine = api.shifts.mine(start, W.addDays(start, 41));
+    const weeks = []; for (let i = 0; i < 42; i += 7) weeks.push(days.slice(i, i + 7));
+    return `<div class="notice notice-ink small">${ic('sparkle', 16)} <span>${T('Working somewhere else too? Mark the hours you are free each day — e.g. only evenings on days you have your other job. Tap days to select them, then choose.', 'Jobber du et annet sted også? Marker timene du er ledig hver dag — f.eks. bare kveld de dagene du har den andre jobben. Trykk på dager for å velge dem, og velg så.')}</span></div>
+      <div class="av-cal">
+        <div class="av-cal-h"><span></span>${[1, 2, 3, 4, 5, 6, 0].map((wd) => `<span>${new Date(2024, 0, 7 + wd).toLocaleDateString(App.i18n.locale(), { weekday: 'short' })}</span>`).join('')}</div>
+        ${weeks.map((w) => `<div class="av-cal-w"><span class="av-wk">${T('W', 'U')}${W.isoWeek(w[0])}</span>${w.map((d) => {
+          const av = api.availability.forDate(u.id, d); const past = d < W.today(); const hol = W.holiday && W.holiday(d);
+          const sh = mine.filter((s) => s.date === d);
+          return `<button class="av-day st-${av.state} ${av.source === 'date' ? 'set' : ''} ${sel.includes(d) ? 'sel' : ''} ${past ? 'past' : ''} ${d === W.today() ? 'today' : ''}" ${past ? 'disabled' : ''} data-action="avPick" data-d="${d}" aria-pressed="${sel.includes(d)}" title="${esc(L(st[av.state][0]))}${av.note ? ' · ' + esc(av.note) : ''}${hol ? ' · ' + esc(L(hol.name)) : ''}">
+            <span class="av-num">${K.fmtDay(d, 'num')}${Number(K.fmtDay(d, 'num')) === 1 ? ' ' + esc(K.fmtDay(d, 'month')) : ''}${hol ? '<i class="av-hol"></i>' : ''}</span>
+            <span class="av-st">${ic(st[av.state][1], 13)}<em>${av.state === 'partial' ? esc(rangeText(av)) : av.state === 'unavailable' ? T('Busy', 'Opptatt') : av.state === 'preferred' ? T('Prefer', 'Gjerne') : ''}</em></span>
+            ${sh.length ? `<span class="av-shift">${sh.map((s) => s.start + '–' + s.end).join(', ')}</span>` : ''}</button>`; }).join('')}</div>`).join('')}
+      </div>
+      <div class="legend"><span><i class="leg-sq" style="background:#E3F4EA"></i> ${T('Available', 'Tilgjengelig')}</span><span><i class="leg-sq" style="background:var(--amber-soft)"></i> ${T('Only some hours', 'Kun noen timer')}</span><span><i class="leg-sq" style="background:#F6E2E4"></i> ${T('Not available', 'Ikke tilgjengelig')}</span><span><i class="leg-sq set-mark"></i> ${T('Set for that date', 'Satt for datoen')}</span><span><b class="av-shift-l">16–22</b> ${T('your shift', 'din vakt')}</span><span><i class="av-hol static"></i> ${T('Public holiday', 'Helligdag')}</span></div>
+      ${sel.length ? `<div class="av-bar"><b>${sel.length} ${T(sel.length === 1 ? 'day selected' : 'days selected', sel.length === 1 ? 'dag valgt' : 'dager valgt')}</b>
+        <div class="row">
+          <button class="btn btn-sm btn-light" data-action="avSet" data-state="available">${ic('check', 15)} ${T('Available all day', 'Hele dagen')}</button>
+          <button class="btn btn-sm btn-light" data-action="avHours">${ic('clock', 15)} ${T('Only some hours…', 'Kun noen timer…')}</button>
+          <button class="btn btn-sm btn-light" data-action="avSet" data-state="unavailable">${ic('x', 15)} ${T('Not available', 'Ikke tilgjengelig')}</button>
+          <button class="btn btn-sm btn-ghost light" data-action="avSet" data-state="clear">${T('Use usual week', 'Bruk vanlig uke')}</button>
+          <button class="icon-btn" data-action="avClear" aria-label="${T('Clear selection', 'Fjern valg')}">${ic('x', 16)}</button></div></div>` : ''}`;
+  }
+  function hoursSheet() {
+    const sel = app.ui.avSel || [];
+    const first = sel[0] && api.availability.forDate(api.auth.me().id, sel[0]);
+    const r = (first && first.state === 'partial' && first.ranges.length ? first.ranges : [{ from: '16:00', to: '23:30' }]).concat([{ from: '', to: '' }, { from: '', to: '' }]).slice(0, 3);
+    return `<form data-form="avHoursSave" class="admin-sheet">${K.sheetHead(T('When can you work?', 'Når kan du jobbe?'), sel.length + ' ' + T(sel.length === 1 ? 'day' : 'days', sel.length === 1 ? 'dag' : 'dager') + ': ' + sel.slice(0, 4).map((d) => K.fmtDay(d, 'short')).join(', ') + (sel.length > 4 ? '…' : ''))}
+      <div class="chips wrap">${[['10:00', '16:00', T('Day', 'Dag')], ['16:00', '23:30', T('Evening', 'Kveld')], ['11:00', '15:00', T('Lunch', 'Lunsj')], ['18:00', '23:30', T('Late', 'Sent')]].map(([a, b, l]) => `<button type="button" class="chip" data-action="avPreset" data-from="${a}" data-to="${b}">${l} ${a}–${b}</button>`).join('')}</div>
+      ${r.map((x, i) => `<div class="row av-range"><span class="small muted">${T('From', 'Fra')}</span><label class="sr-only" for="avf${i}">${T('From', 'Fra')}</label><input id="avf${i}" class="input input-sm" type="time" name="from${i}" value="${x.from}"><span class="small muted">${T('to', 'til')}</span><label class="sr-only" for="avt${i}">${T('To', 'Til')}</label><input id="avt${i}" class="input input-sm" type="time" name="to${i}" value="${x.to}">${i ? `<span class="small muted">${T('(optional)', '(valgfritt)')}</span>` : ''}</div>`).join('')}
+      <label class="field-label" for="avNote">${T('Note for your manager (optional)', 'Melding til leder (valgfritt)')}</label><input id="avNote" class="input" name="note" placeholder="${T('e.g. other job in the morning', 'f.eks. annen jobb om morgenen')}" value="${esc(first && first.note || '')}">
+      <button class="btn btn-primary btn-block">${T('Save', 'Lagre')}</button></form>`;
+  }
+  function usualWeek() {
     const a = api.availability.get();
     const order = [1, 2, 3, 4, 5, 6, 0];
     const name = (wd) => new Date(2024, 0, 7 + wd).toLocaleDateString(App.i18n.locale(), { weekday: 'long' });
     const states = [['available', T('Available', 'Tilgjengelig'), 'check'], ['preferred', T('Prefer to work', 'Jobber gjerne'), 'star'], ['partial', T('Only some hours', 'Kun noen timer'), 'clock'], ['unavailable', T('Unavailable', 'Utilgjengelig'), 'x']];
-    return `<div class="page-w narrow">
-      ${head(T('Availability', 'Tilgjengelighet'), T('Tell your manager when you can and cannot work. The rota planner sees this when building the schedule.', 'Fortell leder når du kan og ikke kan jobbe. Den som lager vaktplanen ser dette.'))}
+    return `<p class="small muted">${T('Your normal pattern. Anything you set for a specific date (Day by day) replaces it for that day.', 'Ditt vanlige mønster. Det du setter for en bestemt dato (Dag for dag) erstatter det den dagen.')}</p>
       <div class="avail">${order.map((wd) => { const v = a.weekly[wd] || { state: 'available' }; return `<div class="av-row st-${v.state}">
-        <b class="av-day">${name(wd)}</b>
+        <b class="av-day-name">${name(wd)}</b>
         <div class="av-states">${states.map(([k, label, icon]) => `<button class="${v.state === k ? 'on' : ''} s-${k}" data-action="setAvail" data-wd="${wd}" data-state="${k}" title="${label}">${ic(icon, 15)}<span>${label}</span></button>`).join('')}</div>
-        ${v.state === 'partial' || v.state === 'preferred' ? `<div class="av-times"><input class="input input-sm" type="time" value="${v.from || '16:00'}" data-change="availTime" data-wd="${wd}" data-k="from"> – <input class="input input-sm" type="time" value="${v.to || '22:30'}" data-change="availTime" data-wd="${wd}" data-k="to"></div>` : ''}
-        ${v.note ? `<span class="small muted">${esc(v.note)}</span>` : ''}</div>`; }).join('')}</div>
-      <p class="small muted">${T('For single dates (exams, appointments), use Leave → "Time off".', 'For enkeltdatoer (eksamen, avtaler), bruk Fravær → «Fri».')}</p>
-    </div>`;
+        ${v.state === 'partial' || v.state === 'preferred' ? `<div class="av-times"><input class="input input-sm" type="time" aria-label="${T('From', 'Fra')}" value="${v.from || '16:00'}" data-change="availTime" data-wd="${wd}" data-k="from"> – <input class="input input-sm" type="time" aria-label="${T('To', 'Til')}" value="${v.to || '22:30'}" data-change="availTime" data-wd="${wd}" data-k="to"></div>` : ''}
+        ${v.note ? `<span class="small muted">${esc(v.note)}</span>` : ''}</div>`; }).join('')}</div>`;
+  }
+  function teamAvailability() {
+    const start = app.ui.avTeamStart || W.today();
+    const days = Array.from({ length: 14 }, (_, i) => W.addDays(start, i));
+    const team = api.people.team(loc());
+    return `<div class="row-between"><p class="small muted">${T('What each person can work in the next two weeks. Planned shifts are shown in bold.', 'Hva hver person kan jobbe de neste to ukene. Planlagte vakter vises i fet skrift.')}</p>
+      <div class="row"><button class="icon-btn bordered" data-action="avTeamNav" data-d="-7" aria-label="${T('Earlier', 'Tidligere')}">${ic('back', 16)}</button><button class="icon-btn bordered" data-action="avTeamNav" data-d="7" aria-label="${T('Later', 'Senere')}">${ic('arrow', 16)}</button></div></div>
+      <div class="rota-scroll"><table class="table av-team"><thead><tr><th>${T('Employee', 'Ansatt')}</th>${days.map((d) => `<th class="${d === W.today() ? 'today' : ''}">${K.fmtDay(d, 'wd')}<br><span class="muted">${K.fmtDay(d, 'num')}</span></th>`).join('')}</tr></thead>
+      <tbody>${team.map((p) => `<tr><td><div class="row nowrap">${K.avatar(p, 26)}<span>${esc(p.name)}</span></div></td>${days.map((d) => { const av = api.availability.forDate(p.id, d); const sh = App.store.db.shifts.filter((s) => s.userId === p.id && s.date === d); const lv = App.store.db.leave.find((l) => l.userId === p.id && l.status === 'approved' && d >= l.from && d <= l.to);
+        return `<td class="avc st-${lv ? 'unavailable' : av.state}" title="${esc(av.note || '')}">${lv ? T('Leave', 'Fravær') : av.state === 'partial' ? esc(rangeText(av)) : av.state === 'unavailable' ? '✕' : av.state === 'preferred' ? '★' : ''}${sh.length ? `<b>${sh.map((s) => s.start.replace(':00', '') + '–' + s.end.replace(':00', '')).join(' ')}</b>` : ''}${av.source === 'date' ? '<i class="setdot"></i>' : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
+      <div class="legend"><span><i class="leg-sq" style="background:#E3F4EA"></i> ${T('Available', 'Tilgjengelig')}</span><span><i class="leg-sq" style="background:var(--amber-soft)"></i> ${T('Some hours', 'Noen timer')}</span><span><i class="leg-sq" style="background:#F6E2E4"></i> ${T('Not available / leave', 'Ikke tilgjengelig / fravær')}</span><span><i class="setdot static"></i> ${T('set for that date', 'satt for datoen')}</span></div>`;
   }
 
   // ================= HOURS & PAY =================
@@ -358,7 +422,7 @@
       </div>
       ${mgrView && pending ? `<div class="row"><button class="btn btn-primary btn-sm" data-action="approvePunches" data-all="1">${ic('check', 16)} ${T('Approve all', 'Godkjenn alle')} (${pending})</button><button class="btn btn-ghost btn-sm" data-action="approvePunches">${T('Approve selected', 'Godkjenn valgte')}</button></div>` : ''}
       ${punchTable(list, mgrView)}
-      <p class="small muted">${T('Supplements (example rules, to be confirmed):', 'Tillegg (eksempelregler, må bekreftes):')} ${C().supplements.map((s) => `${esc(L(s.label))} +${s.nokPerHour} kr/t`).join(' · ')} · ${T('Overtime', 'Overtid')} +${C().overtime.pct} % ${T('over', 'over')} ${C().overtime.dailyHours} ${T('h/day', 't/dag')}.</p>
+      <p class="small muted">${T('Supplements (example rules, to be confirmed):', 'Tillegg (eksempelregler, må bekreftes):')} ${C().supplements.map((s) => `${esc(L(s.label))} +${s.pct ? s.pct + ' %' : s.nokPerHour + ' kr/t'}`).join(' · ')} · ${T('Overtime', 'Overtid')} +${C().overtime.pct} % ${T('over', 'over')} ${C().overtime.dailyHours} ${T('h/day', 't/dag')}.</p>
     </div>`;
   }
   function punchEditor(p) {
@@ -494,6 +558,7 @@
     savePunch(data) { api.time.edit(data.id, data); app.modal(null); re(T('Punch corrected', 'Stempling korrigert')); },
   });
 
+  App.views.availabilityHoursSheet = hoursSheet;
   const R = app.route;
   R('/staff/shifts', 'staff', guard(myShifts));
   R('/staff/shifts/rota', 'staff', guard(rota));

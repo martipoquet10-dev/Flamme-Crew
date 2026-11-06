@@ -24,6 +24,7 @@ export const ACTIONS = new Set([
   'events.rsvp', 'events.create', 'learning.completeLesson', 'learning.submitQuiz', 'docs.confirmRead',
   'surveys.respond', 'kudos.give', 'kudos.cheer',
   'labor.setForecast', 'labor.setActual', 'labor.setBudget', 'time.reject', 'time.reopen', 'time.addManual', 'time.lockPeriod',
+  'availability.setDates', 'templates.save', 'templates.apply', 'templates.remove', 'autoplan.run', 'autoplan.undo',
 ]);
 
 const ID_RX = /^[a-z]{1,6}-[a-z0-9]{8,24}$/;
@@ -65,13 +66,15 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
   if (stored) { try { ctx.App.config.app.dataVersion = JSON.parse(stored).dataVersion; } catch { /* corrupt → reseed */ } }
   ['catalog.js', 'content.js', 'prep.js', 'workforce.js', 'community.js'].forEach((f) => load(t + f));
   ['src/core/util.js', 'src/services/prep.js', 'src/core/store.js', 'src/i18n/i18n.js', 'src/services/api.js',
-    'src/services/workforce.js', 'src/services/community.js', 'src/services/labor.js'].forEach(load);
+    'src/services/workforce.js', 'src/services/community.js', 'src/services/labor.js', 'src/services/planning.js'].forEach(load);
 
   const App = ctx.App;
   // Add data introduced by newer versions to an existing database (no reset needed)
   const upgrade = stored && App.demo.laborSeed && !App.store.db.salesActual;
   if (upgrade) Object.assign(App.store.db, App.demo.laborSeed());
   if (!stored || upgrade) App.store.save();
+  const applyRules = () => App.wf.applyOverrides && App.wf.applyOverrides((App.store.db.tenantOverrides || {}).workforce || null);
+  applyRules();
 
   function as(userId, lang) {
     App.store.client.sessionUserId = userId;
@@ -96,6 +99,7 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
     App.__uidReplay = replay;
     try {
       const result = fn(...JSON.parse(JSON.stringify(args)));
+      if (action === 'settings.saveOverrides') applyRules();
       return { ok: true, result: result === undefined ? null : JSON.parse(JSON.stringify(result)) };
     } catch (e) {
       if (e && e.code) return { error: e.code };
@@ -116,6 +120,7 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
   function reset() {
     App.store.resetAll();
     App.store.save();
+    applyRules();
   }
 
   return { App, exec, read, reset, db: () => App.store.db };

@@ -94,7 +94,18 @@ App.tenant = {
       { id: 'evening', label: { en: 'Evening (18–24)', nb: 'Kveld (18–24)' }, days: [1, 2, 3, 4, 5], from: '18:00', to: '24:00', nokPerHour: 25 },
       { id: 'saturday', label: { en: 'Saturday (13–24)', nb: 'Lørdag (13–24)' }, days: [6], from: '13:00', to: '24:00', nokPerHour: 45 },
       { id: 'sunday', label: { en: 'Sunday', nb: 'Søndag' }, days: [0], from: '00:00', to: '24:00', nokPerHour: 60 },
+      // Public holidays replace the day/time supplements above (Norwegian calendar, see holidayCountry)
+      { id: 'holiday', label: { en: 'Public holiday', nb: 'Helligdag' }, holiday: true, pct: 100 },
+      { id: 'holidayEve', label: { en: 'Holiday eve after 15:00', nb: 'Helligdagsaften etter kl. 15' }, holiday: true, eve: true, from: '15:00', to: '24:00', pct: 50 },
+      // Supplements only for some positions (Planday's "employee groups")
+      { id: 'lead', label: { en: 'Shift lead allowance', nb: 'Skiftledertillegg' }, days: [0, 1, 2, 3, 4, 5, 6], from: '00:00', to: '24:00', nokPerHour: 20, groups: ['lead'] },
+      { id: 'driver', label: { en: 'Driver allowance', nb: 'Sjåførtillegg' }, days: [0, 1, 2, 3, 4, 5, 6], from: '00:00', to: '24:00', nokPerHour: 15, groups: ['driver'] },
     ],
+    holidayCountry: 'NO',
+    // Punch rounding: minutes 0 = off; mode 'nearest' | 'employee' (in down, out up) | 'employer' (in up, out down)
+    rounding: { minutes: 0, mode: 'nearest' },
+    payFromShiftStart: false,              // early clock-in is paid from the planned start
+    kiosk: { allowUnscheduled: true },     // store tablet: allow clock-in without a planned shift
     // Forecast revenue per weekday (0 = Sunday) — used for labour-cost %. DEMO numbers.
     revenueForecast: { 0: 38000, 1: 24000, 2: 26000, 3: 28000, 4: 34000, 5: 52000, 6: 58000 },
     locationRevenueFactor: { 'loc-lokka': 1, 'loc-frogner': 0.8 },

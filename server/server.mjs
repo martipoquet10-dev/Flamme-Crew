@@ -114,7 +114,26 @@ function serveStatic(req, res) {
 const fails = auth.fails;
 async function api(req, res, route) {
   const method = req.method;
-  if (route === 'health') return send(req, res, 200, { ok: true, tenant: TENANT, ai: aiConfigured(), version, demoPin: !!DEMO_PIN });
+  if (route === 'health') return send(req, res, 200, { ok: true, tenant: TENANT, ai: aiConfigured(), version, demoPin: !!DEMO_PIN, pos: !!process.env.CREW_POS_KEY });
+
+  // Till (POS) → daily sales. Off unless CREW_POS_KEY is set. Body: {locationId, date, sales} or {entries:[...]}
+  if (route === 'pos/sales' && method === 'POST') {
+    const key = process.env.CREW_POS_KEY;
+    const given = String(req.headers['x-crew-pos-key'] || '');
+    if (!key) return send(req, res, 404, { error: 'not_found' });
+    if (given.length !== key.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key))) return send(req, res, 401, { error: 'bad_key' });
+    const body = await readBody(req);
+    const entries = Array.isArray(body.entries) ? body.entries : [body];
+    const saved = [];
+    for (const e of entries.slice(0, 400)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) || !isFinite(Number(e.sales))) continue;
+      const mgr = engine.db().users.find((u) => u.role === 'admin' && u.locationId === e.locationId) || engine.db().users.find((u) => u.role === 'admin');
+      if (!mgr || !engine.App.api.catalog.location(e.locationId)) continue;
+      const r = engine.exec(mgr.id, 'labor.setActual', [e.locationId, e.date, Number(e.sales)], [], 'en');
+      if (r.ok) saved.push(e.locationId + '|' + e.date);
+    }
+    return send(req, res, 200, { ok: true, saved: saved.length });
+  }
 
   if (route === 'accounts' && method === 'GET') {
     return send(req, res, 200, staffUsers().map((u) => ({ id: u.id, name: u.name, title: u.title, locationId: u.locationId, role: u.role, color: u.color })));
@@ -193,6 +212,26 @@ async function api(req, res, route) {
     if (target !== me.id) Object.keys(auth.sessions).forEach((t) => { if (auth.sessions[t].userId === target) delete auth.sessions[t]; });
     saveAuth();
     return send(req, res, 200, { ok: true });
+  }
+
+  // Store kiosk: a manager's device; every punch is confirmed with the employee's own PIN
+  if (route === 'kiosk' && method === 'POST') {
+    if (me.role !== 'admin') return send(req, res, 403, { error: 'forbidden' });
+    const { userId, pin, op, lang } = await readBody(req);
+    const target = staffUsers().find((u) => u.id === userId);
+    if (!target || (op === 'verify' && target.id !== me.id)) return send(req, res, 404, { error: 'not_found' });
+    const f = fails[userId] || { n: 0, until: 0 };
+    if (f.until > Date.now()) return send(req, res, 429, { error: 'too_many_attempts' });
+    if (!/^\d{4,8}$/.test(String(pin || '')) || !checkPin(userId, pin)) {
+      f.n++; if (f.n >= 5) { f.until = Date.now() + 5 * 60e3; f.n = 0; } fails[userId] = f; saveAuth();
+      return send(req, res, 401, { error: 'wrong_pin' });
+    }
+    delete fails[userId];
+    if (op === 'verify') return send(req, res, 200, { ok: true });
+    const action = { in: 'time.clockIn', out: 'time.clockOut', break: 'time.breakToggle' }[op];
+    if (!action) return send(req, res, 400, { error: 'bad_request' });
+    const r = engine.exec(target.id, action, op === 'in' ? ['Kiosk'] : [], [], lang);
+    return send(req, res, r.error ? 400 : 200, Object.assign(r, { name: target.name }));
   }
 
   if (route === 'reset' && method === 'POST') {

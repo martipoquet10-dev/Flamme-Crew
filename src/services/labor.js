@@ -106,15 +106,16 @@
       req('admin');
       const wd = W.weekday(day), curve = cfg().hourlySales[wd === 0 || wd === 5 || wd === 6 ? 'weekend' : 'weekday'];
       const f = forecast(loc, day), a = actual(loc, day);
-      const shifts = db().shifts.filter((s) => s.locationId === loc && s.date === day && s.userId);
+      const shifts = db().shifts.filter((s) => s.locationId === loc && s.date === day);
       const punches = punchesFor(loc, day, day, true);
       return Object.keys(curve).map(Number).sort((x, y) => x - y).map((h) => {
         const sales = f * curve[h];
         const planned = shifts.filter((s) => covers(W.shiftStart(s), W.shiftEnd(s), day, h));
         const clocked = punches.filter((p) => covers(new Date(p.in), p.out ? new Date(p.out) : new Date(), day, h));
         const recommended = Math.max(cfg().minStaffPerHour || 1, Math.ceil(sales / cfg().targetSplh));
-        return { hour: h, sales, actualSales: a != null ? a * curve[h] : null, planned: planned.length, clocked: clocked.length, recommended,
-          gap: planned.length - recommended, people: planned.map((s) => s.userId) };
+        const open = planned.filter((s) => !s.userId).length;
+        return { hour: h, sales, actualSales: a != null ? a * curve[h] : null, planned: planned.length, open, clocked: clocked.length, recommended,
+          gap: planned.length - recommended, people: planned.filter((s) => s.userId).map((s) => s.userId) };
       });
     },
   };

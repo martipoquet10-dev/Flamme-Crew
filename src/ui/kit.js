@@ -149,6 +149,7 @@
     if (o.primary) Object.assign(t.brand.colors, { primary: o.primary, primaryInk: o.primary, primarySoft: o.primary + '1F' });
     if (o.sections) Object.keys(o.sections).forEach((k) => Object.assign(t.sections[k], o.sections[k]));
     if (o.modules) Object.assign(t.modules, o.modules);
+    if (App.wf.applyOverrides) App.wf.applyOverrides(o.workforce || null);
   }
   App.app.onInit.push(() => { applyOverrides(); applyTheme(); });
 
