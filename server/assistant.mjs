@@ -43,7 +43,7 @@ function companyContext(App, lang) {
 function personalContext(App, lang, locationId) {
   const api = App.api, W = App.wf, me = api.auth.me();
   const loc = locationId || me.locationId;
-  const pos = (id) => L(api.people.position(id).name, lang);
+  const pos = (id) => (api.people.usesPositions() ? L(api.people.position(id).name, lang) : '');
   const mine = api.shifts.mine(W.today()).filter((s) => W.shiftEnd(s) > new Date()).slice(0, 6).map((s) => `- ${s.date} ${s.start}-${s.end} ${pos(s.positionId)}`);
   const today = api.people.workingOn(loc, W.today()).map((s) => `- ${(api.people.get(s.userId) || {}).name}: ${s.start}-${s.end} ${pos(s.positionId)}`);
   const bal = api.leave.balance();

@@ -160,7 +160,7 @@ App.ai = (function () {
   function scheduleAnswer(q, ctx) {
     const n = U.normalize(q), W = App.wf, K = App.kit;
     if (!App.api.shifts) return null;
-    const line = (s) => `• ${K.relDay(s.date)} ${s.start}–${s.end} · ${U.L(App.api.people.position(s.positionId).name)}`;
+    const line = (s) => `• ${K.relDay(s.date)} ${s.start}–${s.end}` + (App.api.people.usesPositions() ? ` · ${U.L(App.api.people.position(s.positionId).name)}` : '');
     if (/(who|hvem).*(work|jobb|on shift|pa vakt|på vakt)/.test(n)) {
       const day = /(tomorrow|i morgen|imorgen)/.test(n) ? W.addDays(W.today(), 1) : W.today();
       const list = App.api.people.workingOn(ctx.locationId, day);

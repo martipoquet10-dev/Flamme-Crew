@@ -70,8 +70,11 @@ App.tenant = {
     manager: { en: 'Shift manager', nb: 'Skiftleder' },
   },
 
-  // Job positions used in the rota (colour = chip colour in the schedule).
+  // Positions (kitchen, till, driver…) on shifts. Flamme Burger does not use them: everyone simply has shifts.
+  // Set to true for clients who plan by position — the list below is then used for the rota and pay rules.
+  usePositions: false,
   positions: [
+    { id: 'staff', name: { en: 'Shift', nb: 'Vakt' }, color: '#2563EB' },
     { id: 'kitchen', name: { en: 'Kitchen', nb: 'Kjøkken' }, color: '#E8590C' },
     { id: 'front', name: { en: 'Front / till', nb: 'Kasse / front' }, color: '#7048E8' },
     { id: 'driver', name: { en: 'Driver', nb: 'Sjåfør' }, color: '#0C8599' },
@@ -97,9 +100,7 @@ App.tenant = {
       // Public holidays replace the day/time supplements above (Norwegian calendar, see holidayCountry)
       { id: 'holiday', label: { en: 'Public holiday', nb: 'Helligdag' }, holiday: true, pct: 100 },
       { id: 'holidayEve', label: { en: 'Holiday eve after 15:00', nb: 'Helligdagsaften etter kl. 15' }, holiday: true, eve: true, from: '15:00', to: '24:00', pct: 50 },
-      // Supplements only for some positions (Planday's "employee groups")
-      { id: 'lead', label: { en: 'Shift lead allowance', nb: 'Skiftledertillegg' }, days: [0, 1, 2, 3, 4, 5, 6], from: '00:00', to: '24:00', nokPerHour: 20, groups: ['lead'] },
-      { id: 'driver', label: { en: 'Driver allowance', nb: 'Sjåførtillegg' }, days: [0, 1, 2, 3, 4, 5, 6], from: '00:00', to: '24:00', nokPerHour: 15, groups: ['driver'] },
+      // With usePositions: true, a supplement can be limited to some positions with  groups: ['lead']
     ],
     holidayCountry: 'NO',
     // Punch rounding: minutes 0 = off; mode 'nearest' | 'employee' (in down, out up) | 'employer' (in up, out down)

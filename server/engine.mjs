@@ -73,6 +73,7 @@ export function createEngine({ root, tenant, dataDir, onChange }) {
   const upgrade = stored && App.demo.laborSeed && !App.store.db.salesActual;
   if (upgrade) Object.assign(App.store.db, App.demo.laborSeed());
   if (!stored || upgrade) App.store.save();
+  if (App.wf.normalizePositions && App.wf.normalizePositions(App.store.db)) App.store.save();
   const applyRules = () => App.wf.applyOverrides && App.wf.applyOverrides((App.store.db.tenantOverrides || {}).workforce || null);
   applyRules();
 

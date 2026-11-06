@@ -243,7 +243,7 @@
   function clockCard(compact) {
     const p = api.time.active();
     const s = api.time.todaysShift() || api.shifts.next();
-    const shiftLine = s ? `<span class="clk-shift">${posDot(s.positionId)} ${K.relDay(s.date)} · <b>${s.start}–${s.end}</b> · ${esc(L(api.people.position(s.positionId).name))}</span>` : `<span class="clk-shift muted">${T('No more shifts planned', 'Ingen flere planlagte vakter')}</span>`;
+    const shiftLine = s ? `<span class="clk-shift">${posDot(s.positionId)} ${K.relDay(s.date)} · <b>${s.start}–${s.end}</b>${api.people.usesPositions() ? ' · ' + esc(L(api.people.position(s.positionId).name)) : ''}</span>` : `<span class="clk-shift muted">${T('No more shifts planned', 'Ingen flere planlagte vakter')}</span>`;
     if (p) {
       const br = api.time.onBreak(p);
       return `<div class="clk ${br ? 'brk' : 'on'} ${compact ? 'compact' : ''}">
@@ -256,7 +256,7 @@
       <div class="clk-l"><span class="clk-state off"><i></i>${T('Not clocked in', 'Ikke stemplet inn')}</span><b class="clk-time">${s ? (isToday ? (startsIn > 0 ? T('Starts in ', 'Starter om ') + (startsIn >= 60 ? Math.floor(startsIn / 60) + ' t ' : '') + (startsIn % 60) + ' min' : T('Shift in progress', 'Vakten har startet')) : K.relDay(s.date)) : '—'}</b>${shiftLine}</div>
       <div class="clk-r"><button class="btn btn-primary" data-action="clockIn">${ic('play', 16)} ${T('Clock in', 'Stemple inn')}</button></div></div>`;
   }
-  const posDot = (posId) => `<i class="pdot" style="--c:${api.people.position(posId).color}"></i>`;
+  const posDot = (posId) => (api.people.usesPositions() ? `<i class="pdot" style="--c:${api.people.position(posId).color}"></i>` : '');
   App.views.clockCard = clockCard;
   App.views.posDot = posDot;
 
@@ -315,7 +315,7 @@
       <div class="home-grid">
         <section class="card">
           <div class="row-between"><h2 class="h3">${ic('users', 18)} ${T('Working today', 'På jobb i dag')}</h2><a class="link small" href="#/staff/shifts/rota">${T('Rota', 'Vaktplan')} ${ic('arrow', 14)}</a></div>
-          ${working.length ? `<ul class="who">${working.map((s) => { const p = api.people.get(s.userId); const now = new Date(); const on = W.shiftStart(s) <= now && W.shiftEnd(s) > now; return `<li>${K.avatar(p, 36, { status: api.people.isClockedIn(p.id) ? 'on' : on ? 'due' : '' })}<div><b>${esc(p.name)}</b><span class="small muted">${posDot(s.positionId)} ${esc(L(api.people.position(s.positionId).name))}</span></div><span class="small ${on ? 'green' : 'muted'}">${s.start}–${s.end}</span></li>`; }).join('')}</ul>` : K.empty('users', T('Nobody scheduled', 'Ingen planlagt'))}
+          ${working.length ? `<ul class="who">${working.map((s) => { const p = api.people.get(s.userId); const now = new Date(); const on = W.shiftStart(s) <= now && W.shiftEnd(s) > now; return `<li>${K.avatar(p, 36, { status: api.people.isClockedIn(p.id) ? 'on' : on ? 'due' : '' })}<div><b>${esc(p.name)}</b><span class="small muted">${api.people.usesPositions() ? posDot(s.positionId) + ' ' + esc(L(api.people.position(s.positionId).name)) : esc(L(p.title) || '')}</span></div><span class="small ${on ? 'green' : 'muted'}">${s.start}–${s.end}</span></li>`; }).join('')}</ul>` : K.empty('users', T('Nobody scheduled', 'Ingen planlagt'))}
         </section>
         <section class="card ask-card">
           <h2 class="h3">${ic('bot', 18)} ${T('Ask the AI assistant', 'Spør AI-assistenten')}</h2>
@@ -430,7 +430,7 @@
     const kudos = api.kudos.list().filter((k) => k.toId === u.id);
     return `<div class="page-w narrow">
       <section class="profile">${K.avatar(u, 84)}<div><h1 class="h1">${esc(u.name)}</h1><p class="muted">${esc(L(u.title) || '')} · ${esc((api.catalog.location(u.locationId) || {}).name || '')}</p>
-        <div class="row">${(u.positions || []).map(K.posChip).join('')}</div></div></section>
+        ${api.people.usesPositions() ? `<div class="row">${(u.positions || []).map(K.posChip).join('')}</div>` : ''}</div></section>
       <div class="kpis">
         <div class="kpi"><span class="small muted">${T('Hours this month', 'Timer denne måneden')}</span><b>${W.fmtH(mHours)}</b></div>
         <div class="kpi"><span class="small muted">${T('Holiday left', 'Ferie igjen')}</span><b>${bal.left} ${T('days', 'dager')}</b></div>

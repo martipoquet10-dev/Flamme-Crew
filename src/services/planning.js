@@ -29,6 +29,17 @@
     App.tenant.workforce = base;
   };
 
+  // ---------- clients without positions: every shift is just a shift ----------
+  W.normalizePositions = function (data) {
+    if (App.tenant.usePositions !== false || !data) return false;
+    let changed = false;
+    (data.shifts || []).forEach((s) => { if (s.positionId !== 'staff') { s.positionId = 'staff'; changed = true; } });
+    (data.shiftTemplates || []).forEach((t) => { if (t.positionId !== 'staff') { t.positionId = 'staff'; changed = true; } });
+    (data.weekTemplates || []).forEach((t) => t.shifts.forEach((x) => { if (x.positionId !== 'staff') { x.positionId = 'staff'; changed = true; } }));
+    if (data.shiftTemplates) { const seen = new Set(); const before = data.shiftTemplates.length; data.shiftTemplates = data.shiftTemplates.filter((t) => { const k = t.start + t.end; if (seen.has(k)) return false; seen.add(k); return true; }); if (data.shiftTemplates.length !== before) changed = true; }
+    return changed;
+  };
+
   // ---------- public holidays ----------
   function easter(y) { // anonymous Gregorian algorithm
     const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
@@ -96,7 +107,7 @@
   // Picks the best person for a shift: trained, free, not on leave/unavailable, 11 h rest,
   // within contract hours (+ allowed extra), preferring "prefer to work", fewer hours and lower cost.
   function bestCandidate(s, mon, extra) {
-    const team = db().users.filter((u) => (u.role === 'staff' || u.role === 'admin') && u.locationId === s.locationId && (u.positions || []).includes(s.positionId));
+    const team = db().users.filter((u) => (u.role === 'staff' || u.role === 'admin') && u.locationId === s.locationId && (App.tenant.usePositions === false || (u.positions || []).includes(s.positionId)));
     const h = W.shiftHours(s);
     const scored = team.map((u) => {
       const c = api.shifts.conflicts(Object.assign({}, s, { userId: u.id }));
@@ -118,7 +129,7 @@
       const batch = uid('ap'); const log = { id: batch, loc, mon, by: mgr.name, at: new Date().toISOString(), created: [], assigned: [] };
       const today = W.today();
       if (o.create) {
-        const positions = (o.positions && o.positions.length ? o.positions : ['kitchen', 'front']);
+        const positions = App.tenant.usePositions === false ? ['staff'] : (o.positions && o.positions.length ? o.positions : ['kitchen', 'front']);
         for (let i = 0; i < 7; i++) {
           const day = W.addDays(mon, i); if (day < today) continue;
           let hours = api.labor.hourly(loc, day);

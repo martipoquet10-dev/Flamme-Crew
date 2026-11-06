@@ -136,7 +136,7 @@ App.wf = (function () {
       out.push({ kind: 'outside', text: T('Outside available hours (' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + ')', 'Utenfor tilgjengelige timer (' + av.ranges.map((r) => r.from + '–' + r.to).join(', ') + ')') });
     const rest = all.some((x) => { const gapA = (W.shiftStart(s) - W.shiftEnd(x)) / 36e5, gapB = (W.shiftStart(x) - W.shiftEnd(s)) / 36e5; return (gapA > 0 && gapA < 11) || (gapB > 0 && gapB < 11); });
     if (rest) out.push({ kind: 'rest', text: T('Less than 11 h rest (AML § 10-8)', 'Under 11 t hvile (AML § 10-8)') });
-    if (u && s.positionId && u.positions && !u.positions.includes(s.positionId)) out.push({ kind: 'position', text: T('Not trained for this position', 'Ikke opplært i denne stillingen') });
+    if (App.tenant.usePositions !== false && u && s.positionId && u.positions && !u.positions.includes(s.positionId)) out.push({ kind: 'position', text: T('Not trained for this position', 'Ikke opplært i denne stillingen') });
     const mon = W.monday(s.date), sun = W.addDays(mon, 6);
     const wk = all.filter((x) => x.date >= mon && x.date <= sun).reduce((h, x) => h + W.shiftHours(x), 0) + W.shiftHours(s);
     if (wk > cfg().overtime.weeklyHours) out.push({ kind: 'overtime', text: T('Over ' + cfg().overtime.weeklyHours + ' h this week', 'Over ' + cfg().overtime.weeklyHours + ' t denne uka') });
@@ -147,8 +147,9 @@ App.wf = (function () {
     all() { req('staff'); return db().users.filter((u) => u.role !== 'customer'); },
     get(id) { req('staff'); return userOf(id) || null; },
     team(locationId) { return api.people.all().filter((u) => u.locationId === locationId); },
-    positions() { return App.tenant.positions; },
-    position(id) { return App.tenant.positions.find((p) => p.id === id) || { id, name: T(id, id), color: '#868E96' }; },
+    usesPositions() { return App.tenant.usePositions !== false; },
+    positions() { return api.people.usesPositions() ? App.tenant.positions.filter((p) => p.id !== 'staff') : App.tenant.positions.filter((p) => p.id === 'staff'); },
+    position(id) { const list = App.tenant.positions; if (!api.people.usesPositions()) return list.find((p) => p.id === 'staff') || list[0]; return list.find((p) => p.id === id) || { id, name: T(id, id), color: '#868E96' }; },
     // Who is clocked in right now / scheduled now
     workingNow(locationId) {
       req('staff');
@@ -175,7 +176,7 @@ App.wf = (function () {
       const u = req('admin');
       const s = data.id ? db().shifts.find((x) => x.id === data.id) : null;
       const shift = Object.assign(s || { id: uid('sh'), published: false }, {
-        locationId: data.locationId, userId: data.userId || null, positionId: data.positionId, date: data.date, start: data.start, end: data.end,
+        locationId: data.locationId, userId: data.userId || null, positionId: App.tenant.usePositions === false ? 'staff' : data.positionId, date: data.date, start: data.start, end: data.end,
         breakMin: Number(data.breakMin) || 0, note: data.note || '', open: !data.userId,
       });
       if (s && s.published) { shift.published = true; if (shift.userId) notify(shift.userId, T('Your shift on ' + shift.date + ' was changed by ' + u.name, 'Vakten din ' + shift.date + ' ble endret av ' + u.name), '#/staff/shifts', 'shift'); }
@@ -243,7 +244,7 @@ App.wf = (function () {
     market() {
       const u = req('staff');
       return R().filter((r) => r.type === 'handover' && r.status === 'open' && r.fromId !== u.id).filter((r) => {
-        const s = db().shifts.find((x) => x.id === r.shiftId); return s && W.shiftEnd(s) > new Date() && (u.positions || []).includes(s.positionId) && s.locationId === u.locationId;
+        const s = db().shifts.find((x) => x.id === r.shiftId); return s && W.shiftEnd(s) > new Date() && (App.tenant.usePositions === false || (u.positions || []).includes(s.positionId)) && s.locationId === u.locationId;
       });
     },
     forManager() { req('admin'); return R().filter((r) => r.status === 'pending_manager'); },

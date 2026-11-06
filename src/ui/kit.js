@@ -151,7 +151,7 @@
     if (o.modules) Object.assign(t.modules, o.modules);
     if (App.wf.applyOverrides) App.wf.applyOverrides(o.workforce || null);
   }
-  App.app.onInit.push(() => { applyOverrides(); applyTheme(); });
+  App.app.onInit.push(() => { if (!(App.sync && App.sync.live) && App.wf.normalizePositions && App.wf.normalizePositions(App.store.db)) App.store.save(); applyOverrides(); applyTheme(); });
 
   App.kit = { avatar, avatarStack, illustration, timeAgo, fmtDay, relDay, dateTile, posChip, empty, sheetHead, nok, mod, initials, applyTheme, applyOverrides, T };
 })();

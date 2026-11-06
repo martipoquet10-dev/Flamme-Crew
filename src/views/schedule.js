@@ -13,8 +13,10 @@
   const loc = () => App.views.staffLocation();
   const isMgr = () => api.auth.hasRole('admin');
   const person = (id) => api.people.get(id);
-  const posName = (id) => L(api.people.position(id).name);
-  const posDot = (id) => App.views.posDot(id);
+  const usesPos = () => api.people.usesPositions();
+  const posName = (id) => (usesPos() ? L(api.people.position(id).name) : '');
+  const posDot = (id) => (usesPos() ? App.views.posDot(id) : '');
+  const posPart = (id) => (usesPos() ? `${posDot(id)} ${esc(posName(id))} · ` : '');
   const head = (title, sub, right) => `<header class="staff-head"><div><h1 class="h1">${title}</h1>${sub ? `<p class="small muted">${sub}</p>` : ''}</div>${right || ''}</header>`;
   const C = () => App.tenant.workforce;
 
@@ -25,7 +27,7 @@
     const now = new Date(); const live = W.shiftStart(s) <= now && W.shiftEnd(s) > now;
     return `<button class="shift-card ${live ? 'live' : ''}" style="--c:${api.people.position(s.positionId).color}" data-action="openShift" data-id="${s.id}">
       ${K.dateTile(s.date)}
-      <div class="shift-main"><b>${s.start} – ${s.end}</b><span class="small muted">${posDot(s.positionId)} ${esc(posName(s.positionId))} · ${W.fmtH(W.shiftHours(s))}${s.breakMin ? ' · ' + s.breakMin + ' min ' + T('break', 'pause') : ''}</span>
+      <div class="shift-main"><b>${s.start} – ${s.end}</b><span class="small muted">${posPart(s.positionId)}${W.fmtH(W.shiftHours(s))}${s.breakMin ? ' · ' + s.breakMin + ' min ' + T('break', 'pause') : ''}</span>
         ${o.showLoc ? `<span class="small muted">${ic('location', 13)} ${esc((api.catalog.location(s.locationId) || {}).name)}</span>` : ''}
         ${req ? `<span class="badge badge-amber">${ic('swap', 12)} ${reqLabel(req)}</span>` : ''}${live ? `<span class="badge badge-green">● ${T('Now', 'Nå')}</span>` : ''}${s.note ? `<span class="small">📝 ${esc(s.note)}</span>` : ''}</div>
       <div class="shift-side">${K.avatarStack(mates, 4)}<span class="small muted">${K.relDay(s.date)}</span></div></button>`;
@@ -75,17 +77,17 @@
     const future = W.shiftStart(s) > new Date();
     const mates = api.people.workingOn(s.locationId, s.date).filter((x) => x.id !== s.id);
     const pending = api.requests.all().find((r) => (r.shiftId === s.id || r.targetShiftId === s.id) && ['open', 'pending_colleague', 'pending_manager'].includes(r.status));
-    const colleagues = api.people.team(s.locationId).filter((p) => p.id !== u.id && (p.positions || []).includes(s.positionId));
-    const swapTargets = api.shifts.forRange(s.locationId, W.today(), W.addDays(W.today(), 21)).filter((x) => x.userId && x.userId !== u.id && x.published && x.date !== s.date && W.shiftStart(x) > new Date() && (u.positions || []).includes(x.positionId) && (person(x.userId).positions || []).includes(s.positionId))
+    const colleagues = api.people.team(s.locationId).filter((p) => p.id !== u.id && (!usesPos() || (p.positions || []).includes(s.positionId)));
+    const swapTargets = api.shifts.forRange(s.locationId, W.today(), W.addDays(W.today(), 21)).filter((x) => x.userId && x.userId !== u.id && x.published && x.date !== s.date && W.shiftStart(x) > new Date() && (!usesPos() || ((u.positions || []).includes(x.positionId) && (person(x.userId).positions || []).includes(s.positionId))))
       .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)).slice(0, 25);
     const cost = api.shifts.cost(s);
-    return `${K.sheetHead(`${K.fmtDay(s.date)}`, `${s.start}–${s.end} · ${esc(posName(s.positionId))} · ${esc((api.catalog.location(s.locationId) || {}).name)}`)}
+    return `${K.sheetHead(`${K.fmtDay(s.date)}`, `${s.start}–${s.end} · ${posPart(s.positionId)}${esc((api.catalog.location(s.locationId) || {}).name)}`)}
       <div class="sheet-body stack">
         <div class="facts-row"><div><span class="small muted">${T('Hours', 'Timer')}</span><b>${W.fmtH(W.shiftHours(s))}</b></div><div><span class="small muted">${T('Break', 'Pause')}</span><b>${s.breakMin || 0} min</b></div>
           ${mine || isMgr() ? `<div><span class="small muted">${T('Est. pay', 'Est. lønn')}</span><b>${U.nok(cost.total)}</b></div>` : ''}${cost.supplementNok && (mine || isMgr()) ? `<div><span class="small muted">${T('Supplements', 'Tillegg')}</span><b>${U.nok(cost.supplementNok)}</b></div>` : ''}</div>
         ${s.userId && !mine ? `<div class="row">${K.avatar(person(s.userId), 32)}<b>${esc(person(s.userId).name)}</b></div>` : ''}
         ${s.note ? `<div class="notice notice-ink small">📝 ${esc(s.note)}</div>` : ''}
-        <div><p class="eyebrow">${T('Working that day', 'På jobb den dagen')}</p>${mates.length ? `<ul class="who sm">${mates.map((x) => { const p = x.userId ? person(x.userId) : null; return `<li>${K.avatar(p, 30)}<div><b>${p ? esc(p.name) : T('Open shift', 'Ledig vakt')}</b><span class="small muted">${posDot(x.positionId)} ${esc(posName(x.positionId))}</span></div><span class="small muted">${x.start}–${x.end}</span></li>`; }).join('')}</ul>` : `<p class="small muted">—</p>`}</div>
+        <div><p class="eyebrow">${T('Working that day', 'På jobb den dagen')}</p>${mates.length ? `<ul class="who sm">${mates.map((x) => { const p = x.userId ? person(x.userId) : null; return `<li>${K.avatar(p, 30)}<div><b>${p ? esc(p.name) : T('Open shift', 'Ledig vakt')}</b>${usesPos() ? `<span class="small muted">${posDot(x.positionId)} ${esc(posName(x.positionId))}</span>` : ''}</div><span class="small muted">${x.start}–${x.end}</span></li>`; }).join('')}</ul>` : `<p class="small muted">—</p>`}</div>
         ${pending ? `<div class="notice notice-amber small">${ic('swap', 16)} <span>${typeLabel(pending.type)}: ${reqLabel(pending)}</span></div>` : ''}
         ${mine && future && !pending && K.mod('swaps') ? `<form data-form="shiftChange" class="card inset stack">
           <input type="hidden" name="shiftId" value="${s.id}">
@@ -127,7 +129,7 @@
         ${mon !== W.monday(today) ? `<button class="btn btn-ghost btn-sm" data-action="rotaNav" data-d="0">${T('This week', 'Denne uka')}</button>` : ''}</div>
       <div class="row">
         <div class="seg seg-sm"><button class="${view === 'week' ? 'on' : ''}" data-action="rotaView" data-v="week">${ic('week', 16)} ${T('Week', 'Uke')}</button><button class="${view === 'day' ? 'on' : ''}" data-action="rotaView" data-v="day">${ic('list', 16)} ${T('Day', 'Dag')}</button></div>
-        <select class="input input-sm" data-change="rotaPos"><option value="">${T('All positions', 'Alle stillinger')}</option>${api.people.positions().map((p) => `<option value="${p.id}" ${p.id === posF ? 'selected' : ''}>${esc(L(p.name))}</option>`).join('')}</select>
+        ${usesPos() ? `<select class="input input-sm" data-change="rotaPos"><option value="">${T('All positions', 'Alle stillinger')}</option>${api.people.positions().map((p) => `<option value="${p.id}" ${p.id === posF ? 'selected' : ''}>${esc(L(p.name))}</option>`).join('')}</select>` : ''}
         ${isMgr() ? `<button class="btn btn-ghost btn-sm" data-action="rotaAuto">${ic('sparkle', 16)} ${T('Auto-plan', 'Autoplan')}</button>
           <button class="btn btn-ghost btn-sm" data-action="rotaTemplates">${ic('doc', 16)} ${T('Templates', 'Maler')}</button>
           <button class="btn btn-ghost btn-sm" data-action="copyWeek">${ic('copy', 16)} ${T('Copy last week', 'Kopier forrige uke')}</button>
@@ -140,7 +142,7 @@
         <div class="kpi ${weekCost / weekRev * 100 > C().laborTargetPct ? 'warn' : 'ok'}"><span class="small muted">${T('Labour % of forecast sales', 'Lønn % av prognose')}</span><b>${(weekCost / weekRev * 100).toFixed(1)} %</b><span class="small muted">${T('target', 'mål')} ${C().laborTargetPct} %</span></div>
         <div class="kpi"><span class="small muted">${T('Open shifts', 'Ledige vakter')}</span><b>${all.filter((s) => !s.userId).length}</b></div>
       </div>${drafts ? `<div class="notice notice-amber small">${ic('alert', 16)} <span>${T(drafts + ' draft shifts are only visible to managers until you publish.', drafts + ' utkast er bare synlige for ledere til du publiserer.')}</span></div>` : ''}` : '';
-    const legend = `<div class="legend">${api.people.positions().map((p) => `<span>${posDot(p.id)} ${esc(L(p.name))}</span>`).join('')}<span><i class="leg-leave"></i> ${T('Leave', 'Fravær')}</span><span><i class="leg-unav"></i> ${T('Unavailable', 'Utilgjengelig')}</span><span><i class="leg-auto"></i> ${T('Auto-planned', 'Autoplanlagt')}</span><span><i class="leg-hol"></i> ${T('Public holiday', 'Helligdag')}</span>${isMgr() ? `<span><i class="leg-draft"></i> ${T('Draft', 'Utkast')}</span>` : ''}</div>`;
+    const legend = `<div class="legend">${usesPos() ? api.people.positions().map((p) => `<span>${posDot(p.id)} ${esc(L(p.name))}</span>`).join('') : ''}<span><i class="leg-leave"></i> ${T('Leave', 'Fravær')}</span><span><i class="leg-unav"></i> ${T('Unavailable', 'Utilgjengelig')}</span><span><i class="leg-auto"></i> ${T('Auto-planned', 'Autoplanlagt')}</span><span><i class="leg-hol"></i> ${T('Public holiday', 'Helligdag')}</span>${isMgr() ? `<span><i class="leg-draft"></i> ${T('Draft', 'Utkast')}</span>` : ''}</div>`;
     return `<div class="page-w wide">
       ${head(T('Rota', 'Vaktplan'), esc((api.catalog.location(l) || {}).name) + (isMgr() ? ' · ' + T('Click an empty cell to add a shift.', 'Klikk på en tom celle for å legge til en vakt.') : ''))}
       ${toolbar}${summary}
@@ -154,7 +156,7 @@
     const cf = isMgr() ? api.shifts.conflicts(s) : [];
     const mine = s.userId === (api.auth.me() || {}).id;
     return `<button class="rchip ${s.published ? '' : 'draft'} ${mine ? 'mine' : ''} ${s.userId ? '' : 'open'} ${s.auto ? 'auto' : ''}" style="--c:${p.color}" data-action="openShift" data-id="${s.id}" ${isMgr() && W.shiftStart(s) > new Date() ? `draggable="true" data-drag="${s.id}"` : ''} title="${esc(posName(s.positionId))}${cf.length ? ' · ⚠ ' + cf.map((c) => L(c.text)).join(', ') : ''}">
-      <b>${s.start}–${s.end}</b>${compact ? '' : `<span>${esc(posName(s.positionId))}</span>`}${cf.length ? `<i class="cf">!</i>` : ''}</button>`;
+      <b>${s.start}–${s.end}</b>${compact ? '' : `<span>${usesPos() ? esc(posName(s.positionId)) : W.fmtH(W.shiftHours(s))}</span>`}${cf.length ? `<i class="cf">!</i>` : ''}</button>`;
   }
   function weekGrid(days, team, all, leave, stats) {
     const today = W.today();
@@ -202,7 +204,7 @@
   function shiftEditor(s, preset) {
     const l = loc(); const p = preset || {};
     const isNew = !s;
-    s = s || { locationId: l, userId: p.user || '', positionId: 'kitchen', date: p.date || W.today(), start: '16:00', end: '22:30', breakMin: 30, note: '' };
+    s = s || { locationId: l, userId: p.user || '', positionId: usesPos() ? 'kitchen' : 'staff', date: p.date || W.today(), start: '16:00', end: '22:30', breakMin: 30, note: '' };
     const team = api.people.team(s.locationId);
     const cf = !isNew ? api.shifts.conflicts(s) : [];
     return `<form data-form="saveShift" class="admin-sheet">${K.sheetHead(isNew ? T('New shift', 'Ny vakt') : T('Edit shift', 'Rediger vakt'), esc((api.catalog.location(s.locationId) || {}).name))}
@@ -211,10 +213,10 @@
       <div class="chips wrap">${api.shifts.templates().map((tp) => `<button type="button" class="chip" data-action="applyTpl" data-pos="${tp.positionId}" data-start="${tp.start}" data-end="${tp.end}">${posDot(tp.positionId)} ${esc(L(tp.name))} <span class="muted">${tp.start}–${tp.end}</span></button>`).join('')}</div>
       <div class="grid-2">
         <div><label class="field-label">${T('Date', 'Dato')}</label><input class="input" type="date" name="date" value="${s.date}" required></div>
-        <div><label class="field-label">${T('Position', 'Stilling')}</label><select class="input" name="positionId">${api.people.positions().map((x) => `<option value="${x.id}" ${x.id === s.positionId ? 'selected' : ''}>${esc(L(x.name))}</option>`).join('')}</select></div>
+        ${usesPos() ? `<div><label class="field-label">${T('Position', 'Stilling')}</label><select class="input" name="positionId">${api.people.positions().map((x) => `<option value="${x.id}" ${x.id === s.positionId ? 'selected' : ''}>${esc(L(x.name))}</option>`).join('')}</select></div>` : '<input type="hidden" name="positionId" value="staff">'}
         <div><label class="field-label">${T('Start', 'Start')}</label><input class="input" type="time" name="start" value="${s.start}" required></div>
         <div><label class="field-label">${T('End', 'Slutt')}</label><input class="input" type="time" name="end" value="${s.end}" required></div>
-        <div><label class="field-label">${T('Employee', 'Ansatt')}</label><select class="input" name="userId"><option value="">— ${T('Open shift (anyone can request)', 'Ledig vakt (alle kan be om den)')} —</option>${team.map((x) => `<option value="${x.id}" ${x.id === s.userId ? 'selected' : ''}>${esc(x.name)} · ${(x.positions || []).map((pp) => posName(pp)).join(', ')}</option>`).join('')}</select></div>
+        <div><label class="field-label">${T('Employee', 'Ansatt')}</label><select class="input" name="userId"><option value="">— ${T('Open shift (anyone can request)', 'Ledig vakt (alle kan be om den)')} —</option>${team.map((x) => `<option value="${x.id}" ${x.id === s.userId ? 'selected' : ''}>${esc(x.name)}${usesPos() ? ' · ' + (x.positions || []).map((pp) => posName(pp)).join(', ') : ''}</option>`).join('')}</select></div>
         <div><label class="field-label">${T('Unpaid break (min)', 'Ubetalt pause (min)')}</label><input class="input" type="number" name="breakMin" min="0" step="5" value="${s.breakMin || 0}"></div>
         <div class="full"><label class="field-label">${T('Note to employee', 'Notat til ansatt')}</label><input class="input" name="note" value="${esc(s.note || '')}"></div>
       </div>
@@ -257,9 +259,9 @@
     const myReq = api.requests.mine().filter((r) => r.type === 'claim' && r.status === 'pending_manager').map((r) => r.shiftId);
     return `<div class="page-w">
       ${head(T('Open shifts', 'Ledige vakter'), T('Shifts that still need someone. Request one — a manager confirms it.', 'Vakter som fortsatt mangler noen. Be om en — leder bekrefter.'), isMgr() ? `<button class="btn btn-primary btn-sm" data-action="newShift" data-date="${W.today()}" data-user="">${ic('plus', 16)} ${T('Post open shift', 'Legg ut ledig vakt')}</button>` : '')}
-      ${list.length ? `<div class="open-grid">${list.map((s) => { const ok = (u.positions || []).includes(s.positionId); const req = myReq.includes(s.id); const cost = api.shifts.cost(Object.assign({}, s, { userId: u.id }));
+      ${list.length ? `<div class="open-grid">${list.map((s) => { const ok = !usesPos() || (u.positions || []).includes(s.positionId); const req = myReq.includes(s.id); const cost = api.shifts.cost(Object.assign({}, s, { userId: u.id }));
         return `<div class="open-card" style="--c:${api.people.position(s.positionId).color}">
-          <div class="row-between">${K.dateTile(s.date)}<span class="pos-chip" style="--c:${api.people.position(s.positionId).color}">${esc(posName(s.positionId))}</span></div>
+          <div class="row-between">${K.dateTile(s.date)}${usesPos() ? `<span class="pos-chip" style="--c:${api.people.position(s.positionId).color}">${esc(posName(s.positionId))}</span>` : ''}</div>
           <b class="h2">${s.start} – ${s.end}</b><span class="small muted">${K.relDay(s.date)} · ${W.fmtH(W.shiftHours(s))} · ${T('≈', '≈')} ${U.nok(cost.total)}</span>
           ${req ? `<span class="badge badge-amber">${T('Requested — waiting for manager', 'Forespurt — venter på leder')}</span>` : ok ? `<button class="btn btn-primary btn-block" data-action="claimShift" data-id="${s.id}">${T('Request shift', 'Be om vakten')}</button>` : `<span class="small muted">${T('Requires', 'Krever')} ${esc(posName(s.positionId))}</span>`}
         </div>`; }).join('')}</div>` : K.empty('plusCircle', T('No open shifts right now', 'Ingen ledige vakter akkurat nå'), T('You will be notified when new ones are posted.', 'Du får varsel når nye legges ut.'))}
@@ -273,7 +275,7 @@
     const market = api.requests.market();
     const mine = api.requests.mine().filter((r) => r.fromId === u.id || (r.toId === u.id && r.status !== 'pending_colleague'));
     const sh = (id) => api.shifts.get(id);
-    const line = (s) => s ? `${posDot(s.positionId)} <b>${K.fmtDay(s.date, 'short')} ${s.start}–${s.end}</b> <span class="muted">${esc(posName(s.positionId))}</span>` : '—';
+    const line = (s) => s ? `${posDot(s.positionId)} <b>${K.fmtDay(s.date, 'short')} ${s.start}–${s.end}</b>${usesPos() ? ` <span class="muted">${esc(posName(s.positionId))}</span>` : ''}` : '—';
     const reqCard = (r, actions) => { const s = sh(r.shiftId), t2 = r.targetShiftId && sh(r.targetShiftId); const from = person(r.fromId), to = r.toId && person(r.toId);
       return `<div class="req-card"><div class="req-top">${K.avatar(from, 36)}<div><b>${esc(from.name)}</b> <span class="small muted">· ${typeLabel(r.type)} · ${K.timeAgo(r.createdAt)}</span>${r.note ? `<p class="small">“${esc(r.note)}”</p>` : ''}</div>${reqBadge(r)}</div>
         <div class="req-shifts"><div>${line(s)}</div>${t2 ? `<span class="req-arrow">${ic('swap', 18)}</span><div>${line(t2)} <span class="small muted">(${esc(person(t2.userId) ? person(t2.userId).name : '')})</span></div>` : to ? `<span class="req-arrow">${ic('arrow', 18)}</span><div>${K.avatar(to, 24)} ${esc(to.name)}</div>` : ''}</div>
@@ -532,7 +534,7 @@
     exportIcs() {
       const list = api.shifts.mine(W.today());
       const ev = list.map((s) => ['BEGIN:VEVENT', 'UID:' + s.id + '@' + App.tenant.id, 'DTSTAMP:' + icsDate(new Date()), 'DTSTART:' + icsDate(W.shiftStart(s)), 'DTEND:' + icsDate(W.shiftEnd(s)),
-        'SUMMARY:' + App.tenant.name + ' — ' + posName(s.positionId), 'LOCATION:' + ((api.catalog.location(s.locationId) || {}).address || ''), 'END:VEVENT'].join('\r\n'));
+        'SUMMARY:' + App.tenant.name + (usesPos() ? ' — ' + posName(s.positionId) : ' — ' + T('Shift', 'Vakt')), 'LOCATION:' + ((api.catalog.location(s.locationId) || {}).address || ''), 'END:VEVENT'].join('\r\n'));
       download('my-shifts.ics', ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//' + App.tenant.appName + '//EN'].concat(ev).concat(['END:VCALENDAR']).join('\r\n'), 'text/calendar');
       app.toast(T(list.length + ' shifts exported', list.length + ' vakter eksportert'));
     },
